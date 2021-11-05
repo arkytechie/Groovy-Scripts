@@ -19,7 +19,7 @@ def Message processData(Message message)
     } else {
         tableNameSuffix = entityInScope.toUpperCase()
     }
-    //Table Name FInalized
+    //Table Name Finalized
     message.setProperty ("tableNameProperty", tableName+tableNameSuffix)
 	
 	//Complete LIST of column names
@@ -28,10 +28,7 @@ def Message processData(Message message)
 	StringBuilder keyFieldValues = new StringBuilder()
 
 	def aRequestBatches = mRequestBatches.value
-	aRequestBatches.any { requestBatch -> 
-				    		//StringBuilder xmlFieldBuilder = new StringBuilder()
-							//xmlFieldBuilder.append("(")
-							//StringBuilder keyFieldValues = new StringBuilder()		
+	aRequestBatches.any { requestBatch -> 		
 							requestBatch.each {
 											if (it.key) {
 												keyFieldValues.append(it.key.toUpperCase() + ",")
@@ -51,18 +48,8 @@ def Message processData(Message message)
 	StringBuilder batchField = new StringBuilder()
 
     //Complete LIST of fields with where clauses
-    aRequestBatches.any { requestBatch -> 
-				    		//StringBuilder whereClauseBuilder = new StringBuilder()
-							//whereClauseBuilder.append(" WHERE ")
-							//StringBuilder batchField = new StringBuilder()		
+    aRequestBatches.any { requestBatch -> 	
 							requestBatch.each {
-											/*
-											if 
-											(it.key.toUpperCase() == "BATCH_BATCHNUMBER" 
-                                            || it.key.toUpperCase() == "CR_BATCH_BATCHNUMBER"
-                                            || it.key.toUpperCase() == "PRODUCT_BATCHNUMBER"
-                                            || it.key.toUpperCase() == "BATCHNUMBER") 
-											*/
 											if (it.key.toUpperCase().contains("BATCHNUMBER")) {
                                                 message.setProperty("batchFieldNameProperty", it.key)
 												batchField.append(it.key.toUpperCase())
