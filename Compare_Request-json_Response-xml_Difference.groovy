@@ -18,7 +18,7 @@ def Message processData(Message message)
                                 ]                                                
     }
 
-	println (finalJsonSet)
+	//println (finalJsonSet)
 
     def xmlResponse = new XmlParser().parseText(message.getBody(String.class))
 
@@ -37,81 +37,7 @@ def Message processData(Message message)
         ]
 	}
 
-    println (xmlSet)
-
-    //def setCounter = 0
-    /*
-    //Request Message fetched from systems has an extra value as compared to the HANA DB so it needs to be inserted into the HANA DB
-    if (finalJsonSet.size() > xmlSet.size()) {
-
-        crudOperation = "INSERT"
-    }
-    //There is an additional value in the HANA DB that is extra as compared to input payload so that has to be removed from DB
-    else if (finalJsonSet.size() < xmlSet.size()) {
-            
-            crudOperation = "DELETE"
-    }
-    //Both the set counts are equal so the loop can be made on any set count 
-    else {
-        for (setCounter = 0; setCounter < finalJsonSet.size(); setCounter++) {
-            if (finalJsonSet[setCounter] != xmlSet[setCounter]) {
-                diffCounter += 1
-                diffSet << [xmlSet[setCounter]]
-                crudOperation = "UPSERT"
-            }
-        }
-    }
-    //finJson.size ()
-    finalJsonSet.each { finJson ->
-                            xmlSet.each {
-                                xmlResp ->
-                                if (finJson.batch_batchNumber+finJson.batch_Plant+finJson.batch_materialNumber+finJson.batch_releaseType != 
-                                xmlResp.batch_batchNumber+xmlResp.batch_Plant+xmlResp.batch_materialNumber+xmlResp.batch_releaseType) {
-                                    diffCounter += 1
-                                    
-                                   
-                                }
-                                
-                        }
-
-    }
-
-    finalJsonSet.each { finJson ->
-        finJson.each { k1,v1 ->
-            xmlSet.each { xmlResp ->
-                            def v2 = xmlResp[k1]
-                            if(v1!=v2) println "the value of $k1 in list1 `$v1` is "
-                            else println "both are equal sets"
-            }
-
-}}
-
-
-
-if (xmlSet.size() > finalJsonSet.size()) {
-        xmlSet.each { xmlResp ->
-                finalJsonSet.any {
-                                    finJson ->
-                                    if (xmlResp.batch_batchNumber+xmlResp.batch_Plant+xmlResp.batch_materialNumber+xmlResp.batch_releaseType !=
-                                        finJson.batch_batchNumber+finJson.batch_Plant+finJson.batch_materialNumber+finJson.batch_releaseType) {
-                                            println ("xml response: " + xmlResp)
-                                            println ("final json set: " + finJson)
-
-                                            diffCounter += 1
-                                            diffSet << [
-                                                        "batch_batchNumber" : xmlResp.batch_batchNumber,
-                                                        "batch_Plant" : xmlResp.batch_Plant,
-                                                        "batch_materialNumber" : xmlResp.batch_materialNumber,
-                                                        "batch_releaseType" : xmlResp.batch_releaseType
-                                            ]
-    
-                                    }
-
-                }
-
-        }
-}
-*/
+    //println (xmlSet)
 
 def crudOperation = "NONE"
 def diffCounter = 0
@@ -156,7 +82,7 @@ if (xmlSet.size() < finalJsonSet.size()) {
 }
 
     message.setProperty ("differenceCount", diffCounter)
-    message.setProperty ("differenceSet", diffSet)
+    message.setProperty ("differenceSet", JsonOutput.toJson(diffSet))
     message.setProperty ("crudOperation", crudOperation)
 
     return message

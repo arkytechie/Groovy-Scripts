@@ -7,13 +7,15 @@ def Message processData(Message message)
     def mRequestBatches = new JsonSlurper().parseText(message.getBody(String.class))
     def mapHeader = message.getHeaders()
 
-    def mapProperty = message.getProperties()
-    def currentDbVersion = mapProperty.get("currentDbVersion")
-    def columnNames = mapProperty.get("columnNameProperty")
-    def tableName = mapProperty.get("tableNameProperty")
-    def whereClause = mapProperty.get("whereClauseProperty")
-    def batchFieldName = mapProperty.get("batchFieldNameProperty")
-    def batchVersionId = mapProperty.get("versionIdColumnName")
+    //def mapProperty = message.getProperties()
+    def currentDbVersion = mapHeader.get("currentDbVersion")
+    def incomingColumnNames = mapHeader.get("incomingColumnNames")
+    def inputColumnNames = (incomingColumnNames.startsWith("(") && incomingColumnNames.endsWith(")"))?incomingColumnNames.substring(1, incomingColumnNames.length() - 1):incomingColumnNames
+    //println(incomingColumnNames)
+    def tableName = mapHeader.get("hanaTableName")
+    //def whereClause = mapProperty.get("whereClauseProperty")
+    //def batchFieldName = mapProperty.get("batchFieldNameProperty")
+    //def batchVersionId = mapProperty.get("versionIdColumnName")
     //println (batchFieldName)
 
     def rootStart = "<NN_TEST_HANADB>\n"
@@ -27,19 +29,10 @@ def Message processData(Message message)
 
     //SELECT col1, col2 FROM t ORDER BY 2;
 
-                def query = "SELECT BATCH_BATCHNUMBER, BATCH_PLANT, BATCH_MATERIALNUMBER, BATCH_RELEASETYPE, LIMSBATCHID, LIMSBATCHSTATUS FROM " + tableName
+                def query = "SELECT " + inputColumnNames +" FROM " + tableName
                 aRequestBatches.each { requestBatch -> 
 				    					    StringBuilder xmlQueryBuilder = new StringBuilder()
 										    xmlQueryBuilder.append(frontendXmlString)
-										    /*StringBuilder queryValues = new StringBuilder()		
-											    requestBatch.each {
-												    if (it.value) {
-													    queryValues.append("\'"+ it.value + "\',")
-												    }
-												    else {
-													    queryValues.append("\'"+ "NULL" + "\',")
-												    }
-											}*/
 											xmlQueryBuilder.append(query
 											//+queryValues.substring(0, queryValues.length() - 1) 
 											+ " "
@@ -52,6 +45,6 @@ def Message processData(Message message)
                                             outputMessage.append(xmlQueryBuilder+"\n")
                                     }
 
-        message.setBody(outputMessage.append(rootEnd))  
+        message.setBody(outputMessage.append(rootEnd).toString())  
         return message
 }
