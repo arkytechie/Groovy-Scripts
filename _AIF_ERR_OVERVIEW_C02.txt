@@ -1,0 +1,468 @@
+*&---------------------------------------------------------------------*
+*&  Include           /AIF/ERR_OVERVIEW_C02
+*&---------------------------------------------------------------------*
+
+*----------------------------------------------------------------------*
+*       CLASS lcl_evt_handler_0400 IMPLEMENTATION
+*----------------------------------------------------------------------*
+*
+*----------------------------------------------------------------------*
+CLASS lcl_evt_handler_0400 IMPLEMENTATION.
+  METHOD on_double_click.
+    DATA: lt_params TYPE TABLE OF rsparams,
+          ls_param  TYPE rsparams.
+    FIELD-SYMBOLS: <ls_msg_output> TYPE /aif/msg_summary_st."msg_output.
+    DATA: ls_rec_key TYPE /aif/alrt_cat_str,
+          lv_recipient_depend TYPE c VALUE 'X'."Note 2633116
+
+    READ TABLE gt_msg_output_0400
+          ASSIGNING <ls_msg_output>
+          INDEX row.
+    IF sy-subrc <> 0.
+      MESSAGE s157(/aif/error_handling) DISPLAY LIKE 'E'.
+      RETURN.
+    ENDIF.
+
+    IF NOT gv_select_dates_0100 IS INITIAL.
+      ls_param-selname = 'P_DFROM'.
+      ls_param-kind = 'P'.
+      ls_param-low = gv_date_begin_0100.
+      APPEND ls_param TO lt_params.
+      ls_param-selname = 'P_TFROM'.
+      ls_param-kind = 'P'.
+      ls_param-low = gv_time_begin_0100.
+      APPEND ls_param TO lt_params.
+      ls_param-selname = 'P_DTO'.
+      ls_param-kind = 'P'.
+      ls_param-low = gv_date_end_0100.
+      APPEND ls_param TO lt_params.
+      ls_param-selname = 'P_TTO'.
+      ls_param-kind = 'P'.
+      IF gv_time_end_0100 IS INITIAL.
+        ls_param-low = ''.
+      ELSE.
+        ls_param-low = gv_time_end_0100.
+      ENDIF.
+      APPEND ls_param TO lt_params.
+      CLEAR ls_param.
+    ENDIF.
+
+    ls_param-kind    = 'P'.
+    ls_param-sign    = 'I'.
+    ls_param-option  = 'EQ'.
+    ls_param-low     = 'X'.
+    ls_param-selname = 'P_STS_E'.
+    APPEND ls_param TO lt_params.
+    ls_param-selname = 'P_STS_A'.
+    APPEND ls_param TO lt_params.
+    ls_param-selname = 'P_STS_I'.
+    APPEND ls_param TO lt_params.
+*    ENDIF.
+    ls_param-selname = 'S_VALUE2'.
+    ls_param-kind = 'S'.
+    ls_param-sign = 'I'.
+    ls_param-option = 'EQ'.
+    ls_param-low = <ls_msg_output>-ns.
+    APPEND ls_param TO lt_params.
+
+    ls_param-selname = 'S_VALUE3'.
+    ls_param-low = <ls_msg_output>-ifname.
+    APPEND ls_param TO lt_params.
+    ls_param-selname = 'S_VALUE4'.
+    ls_param-low = <ls_msg_output>-ifversion.
+    APPEND ls_param TO lt_params.
+
+    ls_param-kind = 'P'.
+    ls_param-selname = 'P_NAME5'.
+    ls_param-low = 'P_MSGID'.
+    APPEND ls_param TO lt_params.
+
+    ls_param-kind = 'S'.
+    ls_param-selname = 'S_VALUE5'.
+    ls_param-low = <ls_msg_output>-id.
+    APPEND ls_param TO lt_params.
+
+    ls_param-kind = 'P'.
+    ls_param-selname = 'P_NAME6'.
+    ls_param-low = 'S_MSGNO'.
+    APPEND ls_param TO lt_params.
+
+    ls_param-kind = 'S'.
+    ls_param-selname = 'S_VALUE6'.
+    ls_param-low = <ls_msg_output>-number.
+    APPEND ls_param TO lt_params.
+
+*   Begin Note 2633116
+*   Pass Selected Recipient to Error Handling Tools
+    IF lv_recipient_depend = abap_true.
+      CLEAR ls_param.
+      ls_param-kind = 'P'.
+      ls_param-selname = 'P_NAME7'.
+      ls_param-low = /aif/if_globals=>gc_eh_fix_sel_pars-recipient_name.
+      APPEND ls_param TO lt_params.
+
+      CLEAR ls_param.
+      ls_param-selname = 'S_VALUE7'.
+      ls_param-kind = 'S'.
+      ls_param-sign = 'I'.
+      ls_param-option = 'EQ'.
+      ls_rec_key-nsrecip = <ls_msg_output>-nsrecip.
+      ls_rec_key-recipient = <ls_msg_output>-recipient.
+      ls_param-low = ls_rec_key.
+      APPEND ls_param TO lt_params.
+    ENDIF.
+*   End Note 2633116
+
+    IF gr_app_log_view_badi IS BOUND.
+      CALL BADI gr_app_log_view_badi->add_msgguids_to_params
+        EXPORTING
+          it_msgguids = <ls_msg_output>-msgguids
+        CHANGING
+          ct_params   = lt_params.
+    ENDIF.
+* get max number from dynpro
+    DATA: lt_dynpfields TYPE TABLE OF dynpread,
+          ls_dynpfield TYPE dynpread.
+    ls_dynpfield-fieldname = 'GV_MAX_0400'.
+    APPEND ls_dynpfield TO lt_dynpfields..
+    CALL FUNCTION 'DYNP_VALUES_READ'
+      EXPORTING
+        dyname               = sy-repid
+        dynumb               = sy-dynnr
+      TABLES
+        dynpfields           = lt_dynpfields
+      EXCEPTIONS
+        invalid_abapworkarea = 01
+        invalid_dynprofield  = 02
+        invalid_dynproname   = 03
+        invalid_dynpronummer = 04
+        invalid_request      = 05
+        no_fielddescription  = 06
+        undefind_error       = 07.
+    IF sy-subrc EQ 0.
+      READ TABLE lt_dynpfields INTO ls_dynpfield WITH KEY fieldname = 'GV_MAX_0400'.
+      IF sy-subrc = 0.
+        CALL FUNCTION 'RS_CONV_EX_2_IN_NO_DD'
+          EXPORTING
+            input_external  = ls_dynpfield-fieldvalue
+          IMPORTING
+            output_internal = gv_max_0400
+          EXCEPTIONS
+            OTHERS          = 20.
+        IF sy-subrc <> 0.
+          MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+                  WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+        ENDIF.
+      ENDIF.
+    ENDIF.
+****** pass date selection to error handling.
+*     with date restriction
+    IF NOT gv_select_dates_0100 IS INITIAL.
+      DATA: lv_begin TYPE cnca_utc_date,
+            lv_end   TYPE cnca_utc_date,
+            lt_mdate TYPE RANGE OF datum,
+            ls_mdate LIKE LINE OF lt_mdate.
+      REFRESH lt_mdate.
+      CALL METHOD gr_calendar_0100->get_selection
+        IMPORTING
+          date_begin      = lv_begin
+          date_end        = lv_end
+*         selection_table =
+        EXCEPTIONS
+          cntl_error = 1
+          OTHERS     = 2.
+      IF sy-subrc <> 0.
+        MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+                   WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+      ELSE.
+        CLEAR ls_mdate.
+        ls_mdate-sign = 'I'.
+        ls_mdate-option = 'BT'.
+        ls_mdate-low = lv_begin.
+        ls_mdate-high = lv_end.
+        APPEND ls_mdate TO lt_mdate.
+      ENDIF.
+    ELSE.
+    ENDIF.
+*<<<Begin of Note 2872356
+    IF gr_app_log_view_badi IS BOUND.
+      DATA lt_param_badi TYPE /aif/if_app_log_view_badi=>tt_param.
+      DATA lv_counter TYPE i.
+      CALL BADI gr_app_log_view_badi->add_additional_params
+        EXPORTING
+          is_msg_summary_st = <ls_msg_output>
+        CHANGING
+          ct_params         = lt_param_badi.
+      lv_counter = 8.
+      DO 2 TIMES.
+        READ TABLE lt_param_badi INTO DATA(ls_param_badi) INDEX sy-index.
+        CHECK sy-subrc IS INITIAL.
+        ls_param-kind = 'P'.
+        ls_param-selname = 'P_NAME' && lv_counter.
+        ls_param-low = ls_param_badi-fieldname.
+        APPEND ls_param TO lt_params.
+        CLEAR ls_param.
+        ls_param-selname = 'S_VALUE' && lv_counter.
+        ls_param-kind = ls_param_badi-kind.
+        FIELD-SYMBOLS <lt_range_tbl> TYPE ANY TABLE.
+        FIELD-SYMBOLS <ls_range> TYPE any.
+        FIELD-SYMBOLS <lv_sign> TYPE any.
+        FIELD-SYMBOLS <lv_option> TYPE any.
+        FIELD-SYMBOLS <lv_low> TYPE any.
+        FIELD-SYMBOLS <lv_high> TYPE any.
+        ASSIGN ls_param_badi-range_tbl->* TO <lt_range_tbl>.
+        LOOP AT <lt_range_tbl> ASSIGNING <ls_range>.
+          ASSIGN COMPONENT 'SIGN' OF STRUCTURE <ls_range> TO <lv_sign>.
+          ASSIGN COMPONENT 'OPTION' OF STRUCTURE <ls_range> TO <lv_option>.
+          ASSIGN COMPONENT 'LOW' OF STRUCTURE <ls_range> TO <lv_low>.
+          ASSIGN COMPONENT 'HIGH' OF STRUCTURE <ls_range> TO <lv_high>.
+          ls_param-sign = <lv_sign>.
+          ls_param-option = <lv_option>.
+          ls_param-low = <lv_low>.
+          ls_param-high = <lv_high>.
+          APPEND ls_param TO lt_params.
+        ENDLOOP.
+        lv_counter = lv_counter + 1.
+      ENDDO.
+
+    ENDIF.
+*<<<End of Note 2872356
+    EXPORT gc_mdate FROM lt_mdate TO MEMORY ID '/AIF/S_MDATE'. "#EC
+* call error handling transaction with these parameter
+    SUBMIT /aif/err_trans
+      WITH p_skip = 'X'
+      WITH p_nodate = 'X'
+      WITH p_max = gv_max_0400
+      WITH SELECTION-TABLE lt_params
+      AND RETURN.   "#EC CI_SUBMIT
+
+  ENDMETHOD.                    "on_double_click
+  METHOD on_link_click.
+    IF gr_app_log_view_badi IS BOUND AND column = 'LONG_TEXT'.
+      CALL BADI gr_app_log_view_badi->display_msg_long_text
+        EXPORTING
+          iv_row             = row
+          it_msg_output_0400 = gt_msg_output_0400.
+    ELSE.
+      on_double_click( EXPORTING row = row column = column ).
+    ENDIF.
+  ENDMETHOD.                    "on_link_click
+  METHOD on_added_function.
+    DATA: lr_selections TYPE REF TO cl_salv_selections,
+          lt_sel_rows   TYPE salv_t_row,
+          ls_msg_key    TYPE sxmsmkey,
+          lt_msg_keys   TYPE sxmsmkeyt,
+          lv_action     TYPE char1,
+          lv_msgguidx16               TYPE sxmsmguid,
+          lv_lines      TYPE i.
+
+* Note 2324247 Advanced Message Summary
+    DATA: lr_adv_msg_sum  TYPE REF TO object,
+          ls_parameter    TYPE abap_parmbind,
+          lt_parameters   TYPE abap_parmbind_tab,
+          ls_method       TYPE tmdir.
+* End Note 2324247 Advanced Message Summary
+
+    FIELD-SYMBOLS: <lv_row_nr>     TYPE int4,
+                   <ls_msg_output> TYPE /aif/msg_summary_st."msg_output.
+
+    IF gr_app_log_view_badi IS BOUND.
+      CALL BADI gr_app_log_view_badi->change_view
+        EXPORTING
+          iv_salv_function   = e_salv_function
+          ir_alv_table_0400  = gr_alv_table_0400
+        CHANGING
+          ct_msg_output_0400 = gt_msg_output_0400.
+    ENDIF.
+* Note 2324247 Advanced Message Summary
+    IF e_salv_function = 'ADV_MSG_SUM'.
+      lr_selections = gr_alv_table_0400->get_selections( ).
+      lt_sel_rows = lr_selections->get_selected_rows( ).
+      IF lt_sel_rows IS INITIAL.
+        MESSAGE s027(/aif/mes).
+        RETURN.
+      ENDIF.
+
+      ls_parameter-name = 'IT_MSG_SUM'.
+      ls_parameter-kind = cl_abap_objectdescr=>exporting.
+      GET REFERENCE OF gt_msg_output_0400 INTO ls_parameter-value.
+      INSERT ls_parameter INTO TABLE lt_parameters.
+
+      ls_parameter-name = 'IT_SEL_ROWS'.
+      ls_parameter-kind = cl_abap_objectdescr=>exporting.
+      GET REFERENCE OF lt_sel_rows INTO ls_parameter-value.
+      INSERT ls_parameter INTO TABLE lt_parameters.
+
+      ls_parameter-name = 'IV_MAX_DATA_MSG'.
+      ls_parameter-kind = cl_abap_objectdescr=>exporting.
+      GET REFERENCE OF gv_max_0100 INTO ls_parameter-value.
+      INSERT ls_parameter INTO TABLE lt_parameters.
+
+      ls_parameter-name = 'IV_WITH_DATE_RESTRICTION'.
+      ls_parameter-kind = cl_abap_objectdescr=>exporting.
+      GET REFERENCE OF gv_select_dates_0100 INTO ls_parameter-value.
+      INSERT ls_parameter INTO TABLE lt_parameters.
+
+      ls_parameter-name = 'IV_DATE_FROM'.
+      ls_parameter-kind = cl_abap_objectdescr=>exporting.
+      GET REFERENCE OF gv_date_begin_0100 INTO ls_parameter-value.
+      INSERT ls_parameter INTO TABLE lt_parameters.
+
+      ls_parameter-name = 'IV_DATE_TO'.
+      ls_parameter-kind = cl_abap_objectdescr=>exporting.
+      GET REFERENCE OF gv_date_end_0100 INTO ls_parameter-value.
+      INSERT ls_parameter INTO TABLE lt_parameters.
+
+      ls_parameter-name = 'IV_TIME_FROM'.
+      ls_parameter-kind = cl_abap_objectdescr=>exporting.
+      GET REFERENCE OF gv_time_begin_0100 INTO ls_parameter-value.
+      INSERT ls_parameter INTO TABLE lt_parameters.
+
+      ls_parameter-name = 'IV_TIME_TO'.
+      ls_parameter-kind = cl_abap_objectdescr=>exporting.
+      GET REFERENCE OF gv_time_end_0100 INTO ls_parameter-value.
+      INSERT ls_parameter INTO TABLE lt_parameters.
+
+      ls_method-classname = '/AIF/CL_ADV_MSG_SUM_TOOL'.
+      ls_method-methodname =  'ON_ADV_MSG_SUM'.
+
+      TRY.
+        CREATE OBJECT lr_adv_msg_sum TYPE (ls_method-classname).
+
+        CALL METHOD lr_adv_msg_sum->(ls_method-methodname)
+          PARAMETER-TABLE
+            lt_parameters.
+
+        CATCH cx_sy_dyn_call_error cx_sy_create_object_error.
+      ENDTRY.
+* End Note 2324247 Advanced Message Summary
+   ENDIF.
+
+    CHECK e_salv_function = 'RESTART' OR e_salv_function = 'CANCEL'.
+    lr_selections = gr_alv_table_0400->get_selections( ).
+    lt_sel_rows = lr_selections->get_selected_rows( ).
+    IF lt_sel_rows IS INITIAL.
+      MESSAGE s027(/aif/mes).
+      RETURN.
+    ENDIF.
+
+    DATA: lt_if_msgs        TYPE /aif/if_msgguids_tt,
+          ls_if_msgs        TYPE /aif/if_msgguids_st,
+          lr_appl_engine    TYPE REF TO /aif/if_application_engine,
+          lr_no_engine      TYPE REF TO /aif/cx_aif_engine_not_found,
+          lr_except_general TYPE REF TO /aif/cx_error_handling_general.
+    FIELD-SYMBOLS: <lv_msgguid> TYPE guid_32,
+                   <ls_if_msgs> TYPE /aif/if_msgguids_st.
+    REFRESH: lt_msg_keys.
+    LOOP AT lt_sel_rows ASSIGNING <lv_row_nr>.
+      READ TABLE gt_msg_output_0400 ASSIGNING <ls_msg_output> INDEX <lv_row_nr>.
+      CHECK sy-subrc = 0.
+      READ TABLE lt_if_msgs ASSIGNING <ls_if_msgs> WITH TABLE KEY ns = <ls_msg_output>-ns
+                                                                  ifname = <ls_msg_output>-ifname
+                                                                  ifver = <ls_msg_output>-ifversion.
+      IF sy-subrc = 0.
+        LOOP AT <ls_msg_output>-msgguids ASSIGNING <lv_msgguid>.
+          READ TABLE <ls_if_msgs>-msgguid TRANSPORTING NO FIELDS WITH TABLE KEY table_line = <lv_msgguid>.
+          IF sy-subrc <> 0.
+            INSERT <lv_msgguid> INTO TABLE <ls_if_msgs>-msgguid.
+          ENDIF.
+        ENDLOOP.
+      ELSE.
+        CLEAR ls_if_msgs.
+        ls_if_msgs-ns = <ls_msg_output>-ns.
+        ls_if_msgs-ifname = <ls_msg_output>-ifname.
+        ls_if_msgs-ifver = <ls_msg_output>-ifversion.
+        INSERT LINES OF <ls_msg_output>-msgguids INTO TABLE ls_if_msgs-msgguid.
+        APPEND ls_if_msgs TO lt_if_msgs.
+      ENDIF.
+    ENDLOOP.
+
+    DATA: lv_msg_count         TYPE i,
+          lv_msg_remain        TYPE i,
+          lv_msg_text          TYPE string.
+    DATA: lv_question          TYPE string,
+          lv_answer            TYPE c.
+
+    IF e_salv_function = 'RESTART'.
+      lv_action = /aif/if_globals=>gc_eh_actioncode-restart.
+      MESSAGE s162(/aif/error_handling) INTO lv_question.
+    ELSEIF e_salv_function = 'CANCEL'.
+      lv_action = /aif/if_globals=>gc_eh_actioncode-cancel.
+      MESSAGE s163(/aif/error_handling) INTO lv_question.
+    ENDIF.
+    "check authorization
+    /aif/cl_aif_global_tools=>check_auth_for_mass_process(
+      EXPORTING
+        iv_action = lv_action
+      IMPORTING
+        ev_msg_remain = lv_msg_remain
+        ev_msg_count = lv_msg_count
+      CHANGING
+        ct_if_msgs = lt_if_msgs ).
+
+    IF lv_msg_remain = 0.
+      CASE lv_action.
+        WHEN /aif/if_globals=>gc_eh_actioncode-restart.
+          MESSAGE i029(/aif/ifmon).
+        WHEN /aif/if_globals=>gc_eh_actioncode-cancel.
+          MESSAGE i031(/aif/ifmon).
+      ENDCASE.
+      RETURN.
+    ELSEIF lv_msg_remain < lv_msg_count.
+      CASE lv_action.
+        WHEN /aif/if_globals=>gc_eh_actioncode-restart.
+          MESSAGE s030(/aif/ifmon) WITH lv_msg_remain lv_msg_count INTO lv_msg_text.
+        WHEN /aif/if_globals=>gc_eh_actioncode-cancel.
+          MESSAGE s032(/aif/ifmon) WITH lv_msg_remain lv_msg_count INTO lv_msg_text.
+      ENDCASE.
+      CONCATENATE lv_msg_text lv_question INTO lv_question SEPARATED BY space.
+    ENDIF.
+
+    CALL FUNCTION 'POPUP_TO_CONFIRM'
+      EXPORTING
+        text_question         = lv_question
+        display_cancel_button = ''
+      IMPORTING
+        answer                = lv_answer
+      EXCEPTIONS
+        text_not_found        = 1
+        OTHERS                = 2.
+    IF sy-subrc <> 0.
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+              WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+    ENDIF.
+    IF lv_answer = '2'.
+      MESSAGE s164(/aif/error_handling).
+      RETURN.
+    ENDIF.
+    UNASSIGN <ls_if_msgs>.
+    LOOP AT lt_if_msgs ASSIGNING <ls_if_msgs>.
+      TRY.
+          lr_appl_engine = /aif/cl_aif_engine_factory=>get_engine(
+              iv_ns            = <ls_if_msgs>-ns
+              iv_ifname        = <ls_if_msgs>-ifname
+              iv_ifversion     = <ls_if_msgs>-ifver
+                 ).
+
+          IF e_salv_function = 'RESTART'.
+            lr_appl_engine->mass_restart( is_if_msgs = <ls_if_msgs> iv_reset_msg_count = abap_true ).
+          ELSEIF e_salv_function = 'CANCEL'.
+            lr_appl_engine->mass_cancel( <ls_if_msgs> ).
+          ENDIF.
+        CATCH /aif/cx_error_handling_general INTO lr_except_general.
+        CATCH /aif/cx_aif_engine_not_found INTO lr_no_engine.
+          MESSAGE ID lr_no_engine->if_t100_message~t100key-msgid TYPE 'S'
+            NUMBER lr_no_engine->if_t100_message~t100key-msgno WITH
+            lr_no_engine->if_t100_message~t100key-attr1
+            lr_no_engine->if_t100_message~t100key-attr2
+            lr_no_engine->if_t100_message~t100key-attr3
+            lr_no_engine->if_t100_message~t100key-attr4.
+      ENDTRY.
+    ENDLOOP.
+    IF e_salv_function = 'RESTART'.
+      MESSAGE s182(/aif/error_handling).
+    ELSEIF e_salv_function = 'CANCEL'.
+      MESSAGE s183(/aif/error_handling).
+    ENDIF.
+  ENDMETHOD.                    "on_added_function
+ENDCLASS.                    "lcl_evt_handler DEFINITION

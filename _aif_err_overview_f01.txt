@@ -1,0 +1,3765 @@
+*&---------------------------------------------------------------------*
+*&  Include           /AIF/ERR_OVERVIEW_F01
+*&---------------------------------------------------------------------*
+
+*&---------------------------------------------------------------------*
+*&      Form  f_create_splitter2_container
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM f_create_splitter2_container.
+
+ENDFORM.                    "f_create_splitter2_container
+*&---------------------------------------------------------------------*
+*&      Form  f_create_tree_control
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM f_create_tree_control.
+
+  DATA: lr_settings       TYPE REF TO cl_salv_tree_settings,
+        lr_columns        TYPE REF TO cl_salv_columns_tree,
+        lr_column         TYPE REF TO cl_salv_column,
+        lr_events         TYPE REF TO cl_salv_events_tree,
+        lr_layout         TYPE REF TO cl_salv_layout,
+        lr_funcs          TYPE REF TO cl_salv_functions_tree,
+        lr_badi_add_funcs TYPE REF TO /aif/error_monitor_act,
+        lt_funcs          TYPE /aif/funcs_list_tt,
+        ls_funcs          TYPE /aif/funcs_list_st,
+        lv_title          TYPE salv_de_tree_text,
+        lr_layout_key     TYPE salv_s_layout_key,
+        lv_tooltip        TYPE string,
+        lv_icon           TYPE string.
+  DATA: lr_adv_msg_sum TYPE REF TO object.
+*        lv_hash             TYPE md5_fields-hash,
+*        lv_hash_16          TYPE md5_fields-hash_raw16,
+*        lv_hash_4(4)        TYPE x,
+*        lv_hash_int         TYPE i.
+
+
+  CHECK gr_alv_tree_0100 IS INITIAL.
+  CALL METHOD gr_splitter_upper->get_container
+    EXPORTING
+      row       = 1
+      column    = 2
+    RECEIVING
+      container = gr_right.
+  TRY.
+      CALL METHOD cl_salv_tree=>factory
+        EXPORTING
+          r_container = gr_right
+          hide_header = abap_false
+        IMPORTING
+          r_salv_tree = gr_alv_tree_0100
+        CHANGING
+          t_table     = gt_tree_data_0100.
+    CATCH cx_salv_error .                               "#EC NO_HANDLER
+  ENDTRY.
+
+  lr_settings = gr_alv_tree_0100->get_tree_settings( ).
+  lr_settings->set_hierarchy_header( TEXT-001 ).
+  lr_settings->set_hierarchy_tooltip( TEXT-001 ).
+  lr_settings->set_hierarchy_size( 60 ).
+  lv_title = TEXT-001.
+  lr_settings->set_header( lv_title ).
+
+* activate default functions
+  lr_funcs = gr_alv_tree_0100->get_functions( ).
+  lr_funcs->set_group_layout( abap_true ).
+  lr_funcs->set_group_print( abap_true ).
+  lv_tooltip = 'Message Summary'(115).
+  TRY.
+      lr_funcs->add_function(
+            EXPORTING
+              name     = 'SUMMARY'
+              icon     = '@0P@'
+              text     = lv_tooltip
+              tooltip  = lv_tooltip
+              position = 1
+              ).
+    CATCH cx_salv_existing cx_salv_wrong_call.          "#EC NO_HANDLER
+  ENDTRY.
+
+  TRY.
+      CREATE OBJECT lr_adv_msg_sum TYPE ('/AIF/CL_ADV_MSG_SUM_TOOL').
+      CALL METHOD lr_adv_msg_sum->('ADD_MY_MESSAGES_BTN')
+        CHANGING
+          cr_functions = lr_funcs.
+    CATCH cx_sy_dyn_call_error cx_sy_create_object_error.
+  ENDTRY.
+
+************** Note 2345535 Start **************
+  CALL FUNCTION 'FUNCTION_EXISTS'
+    EXPORTING
+      funcname           = /aif/if_globals=>gc_last_data_transfer_fumo
+    EXCEPTIONS
+      function_not_exist = 1.
+  IF sy-subrc = 0.
+    DATA lv_text TYPE string.
+    lv_tooltip = 'Display Last Data Transfer'(t06).
+    lv_text = TEXT-t07.
+    TRY.
+        lr_funcs->add_function(
+              EXPORTING
+                name     = 'TRANSFER'
+                icon     = '@16@'
+                text     = lv_text
+                tooltip  = lv_tooltip
+                position = 1
+                ).
+      CATCH cx_salv_existing cx_salv_wrong_call.        "#EC NO_HANDLER
+    ENDTRY.
+  ENDIF.
+************** Note 2345535 End ****************
+************************************************
+  GET BADI lr_badi_add_funcs.
+  IF lr_badi_add_funcs IS NOT INITIAL.
+    CLEAR lt_funcs.
+    CALL BADI lr_badi_add_funcs->get_act_list
+      CHANGING
+        ct_funcs = lt_funcs.
+    LOOP AT lt_funcs INTO ls_funcs.
+      lv_icon = ls_funcs-icon .
+      lv_tooltip = ls_funcs-tooltip .
+      TRY.
+          lr_funcs->add_function(
+                EXPORTING
+                  name     = ls_funcs-name
+                  icon     = lv_icon
+                  tooltip  = lv_tooltip
+                  position = ls_funcs-position
+                  ).
+        CATCH cx_salv_existing cx_salv_wrong_call.      "#EC NO_HANDLER
+      ENDTRY.
+    ENDLOOP.
+  ENDIF.
+*************************************************
+
+  lr_layout = gr_alv_tree_0100->get_layout( ).
+  lr_layout_key-report = sy-repid.
+
+
+*  CALL FUNCTION 'MD5_CALCULATE_HASH_FOR_CHAR'
+*    EXPORTING
+*      data           = sy-uname
+*    IMPORTING
+*      hash           = lv_hash
+*    EXCEPTIONS
+*      no_data        = 1
+*      internal_error = 2
+*      OTHERS         = 3.
+*  IF sy-subrc = 0.
+*    lv_hash_16 = lv_hash.
+*    lv_hash_4 = lv_hash_16(4) BIT-XOR lv_hash_16+4(4) BIT-XOR lv_hash_16+8(4) BIT-XOR lv_hash_16+12(4).
+*    lv_hash_int = lv_hash_4.
+*    lr_layout_key-handle =  lv_hash_int.
+*  ELSE.
+*    lr_layout_key-handle =  '0001'.
+*  ENDIF.
+
+  lr_layout->set_key( lr_layout_key ).
+  lr_layout->set_save_restriction( 3 ).
+  lr_layout->set_default( abap_true ).
+
+  lr_columns = gr_alv_tree_0100->get_columns( ).
+  DATA: lv_colname TYPE lvc_fname.
+  lv_colname = 'STATUS_ICON'.
+
+  TRY.
+      CALL METHOD lr_columns->set_exception_column
+        EXPORTING
+          value = lv_colname
+          group = '1'.
+    CATCH cx_salv_data_error .                          "#EC NO_HANDLER
+  ENDTRY.
+
+  TRY.
+      lr_column = lr_columns->get_column( 'NS' ).lr_column->set_technical( 'X' ).
+      lr_column = lr_columns->get_column( 'IFNAME' ).lr_column->set_technical( 'X' ).
+      lr_column = lr_columns->get_column( 'IFVERSION' ).lr_column->set_technical( 'X' ).
+      lr_column = lr_columns->get_column( 'NR' ).lr_column->set_technical( 'X' ).
+      lr_column = lr_columns->get_column( 'PARENT' ).lr_column->set_technical( 'X' ).
+      lr_column = lr_columns->get_column( 'NODE_KEY' ).lr_column->set_technical( 'X' ).
+      lr_column = lr_columns->get_column( 'NODE_TEXT' ).lr_column->set_technical( 'X' ).
+      lr_column = lr_columns->get_column( 'COLLAPSED_ICON' ).lr_column->set_technical( 'X' ).
+      lr_column = lr_columns->get_column( 'EXPANDED_ICON' ).lr_column->set_technical( 'X' ).
+      lr_column = lr_columns->get_column( 'IS_TECHUSER' ).lr_column->set_technical( 'X' ).
+      lr_column = lr_columns->get_column( 'COUNT_A' ).lr_column->set_technical( 'X' ).
+      lr_column = lr_columns->get_column( 'COUNT_I' ).lr_column->set_technical( 'X' ).
+      lr_column = lr_columns->get_column( 'COUNT_W' ).lr_column->set_technical( 'X' ).
+      lr_column = lr_columns->get_column( 'COUNT_E' ).lr_column->set_technical( 'X' ).
+      lr_column = lr_columns->get_column( 'COUNT_S' ).lr_column->set_technical( 'X' ).
+      lr_column = lr_columns->get_column( 'COUNT_C' ).lr_column->set_technical( 'X' ).
+      lr_column = lr_columns->get_column( 'COUNT_ALL' ).lr_column->set_technical( 'X' ).
+      lr_column = lr_columns->get_column( 'KEYVALUES' ).lr_column->set_technical( 'X' ).
+
+    CATCH cx_salv_not_found .                           "#EC NO_HANDLER
+  ENDTRY.
+
+  lr_events = gr_alv_tree_0100->get_event( ).
+
+  SET HANDLER gr_handler->on_expand_nc FOR lr_events.
+  SET HANDLER gr_handler->on_double_click FOR lr_events.
+  SET HANDLER gr_handler->on_link_click FOR lr_events.
+  SET HANDLER gr_handler->on_added_function FOR lr_events.
+
+ENDFORM.                    "f_create_tree_control
+
+
+
+*&---------------------------------------------------------------------*
+*&      Form  f_update_icon
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->PR_NODE          text
+*      -->PV_ICON_NAME     text
+*      -->PV_ICON_TOOLTIP  text
+*      -->PV_COLUMN_NAME   text
+*      -->PV_COUNT         text
+*----------------------------------------------------------------------*
+FORM f_update_icon USING    pr_node TYPE REF TO cl_salv_node
+                            pv_icon_name TYPE c
+                            pv_icon_tooltip TYPE c
+                            pv_column_name TYPE c
+                            pv_count TYPE i.
+  DATA: lr_item TYPE REF TO cl_salv_item,
+        lv_icon TYPE salv_de_tree_image.
+  TRY.
+      lr_item = pr_node->get_item( pv_column_name ).
+    CATCH cx_salv_msg.                                  "#EC NO_HANDLER
+  ENDTRY.
+  IF pv_count <> 0.
+    CLEAR: lv_icon.
+    IF NOT pv_icon_name IS INITIAL.
+      CALL FUNCTION 'ICON_CREATE'
+        EXPORTING
+          name                  = pv_icon_name
+          info                  = pv_icon_tooltip
+        IMPORTING
+          result                = lv_icon
+        EXCEPTIONS
+          icon_not_found        = 0
+          outputfield_too_short = 0
+          OTHERS                = 0.
+    ENDIF.
+    lr_item->set_icon( lv_icon ).
+    lr_item->set_value( pv_count ).
+*   display number as hyperlink.
+    lr_item->set_type( if_salv_c_cell_type=>hotspot ).
+
+  ELSE.
+    lr_item->set_icon( '' ).
+    lr_item->set_value( '' ).
+  ENDIF.
+ENDFORM.                    "f_update_icon
+*&---------------------------------------------------------------------*
+*&      Form  f_add_tree_nodes
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->PT_TREE_DATA  text
+*----------------------------------------------------------------------*
+FORM f_add_tree_nodes  USING it_recip_tech TYPE tt_recip_tech
+                       CHANGING pt_tree_data TYPE /aif/tree_data_tt
+                                ev_hidden TYPE char1.
+
+* add nodes to tree
+  DATA: ls_temp_node TYPE /aif/tree_data,
+        lv_node_key  TYPE salv_de_node_key,
+        lr_node      TYPE REF TO cl_salv_node,
+        lr_nodes     TYPE REF TO cl_salv_nodes,
+        lr_item      TYPE REF TO cl_salv_item,
+        lv_all       TYPE i,
+        lv_count_w   TYPE i,
+        lv_count_e   TYPE i,
+        lv_count_a   TYPE i,
+        lv_count_i   TYPE i,
+        lv_count_s   TYPE i,
+        lv_count_c   TYPE i,
+        lv_icon      TYPE salv_de_tree_image,
+        ls_node_data TYPE ts_tree_data.
+  FIELD-SYMBOLS: <ls_ns_node>    TYPE /aif/tree_data,
+                 <ls_data>       TYPE /aif/tree_data,
+                 <lfs_tree_data> TYPE ts_tree_data,
+                 <lfs_tree_root> TYPE ts_tree_data.
+
+  CLEAR ev_hidden.
+
+  ev_hidden = abap_true.
+
+  lr_nodes = gr_alv_tree_0100->get_nodes( ).
+
+* summarize the msg numbers
+  LOOP AT pt_tree_data ASSIGNING <ls_data>.
+    AT NEW ns.
+      CLEAR: lv_all, lv_count_w, lv_count_e, lv_count_a, lv_count_i, lv_count_s, lv_count_c.
+    ENDAT.
+    AT END OF ns.
+      READ TABLE pt_tree_data ASSIGNING <ls_ns_node> WITH KEY ns = <ls_data>-ns parent = 0.
+      IF sy-subrc = 0.
+        <ls_ns_node>-count_all = lv_all + <ls_data>-count_all.
+        <ls_ns_node>-count_w = lv_count_w + <ls_data>-count_w.
+        <ls_ns_node>-count_e = lv_count_e + <ls_data>-count_e.
+        <ls_ns_node>-count_s = lv_count_s + <ls_data>-count_s.
+        <ls_ns_node>-count_c = lv_count_c + <ls_data>-count_c.
+        READ TABLE it_recip_tech TRANSPORTING NO FIELDS WITH KEY nsrecipient = <ls_data>-nsrecipient
+                                                            recipient = <ls_data>-recipient
+                                                            is_techuser = 'X'.
+        IF sy-subrc <> 0.
+          CLEAR: <ls_data>-count_a,<ls_data>-count_i.
+        ELSE.
+          CLEAR ev_hidden.
+        ENDIF.
+        <ls_ns_node>-count_a = lv_count_a + <ls_data>-count_a.
+        <ls_ns_node>-count_i = lv_count_i + <ls_data>-count_i.
+        IF <ls_ns_node>-count_e <> 0 OR <ls_ns_node>-count_a <> 0.
+          <ls_ns_node>-status_icon = '1'.
+        ELSEIF <ls_ns_node>-count_w <> 0 OR <ls_ns_node>-count_i <> 0.
+          <ls_ns_node>-status_icon = '2'.
+        ELSEIF <ls_ns_node>-count_all <> 0 .
+          <ls_ns_node>-status_icon = '3'.
+        ELSE.
+          <ls_ns_node>-status_icon = '0'.
+        ENDIF.
+      ENDIF.
+    ENDAT.
+    lv_all = lv_all + <ls_data>-count_all .
+    lv_count_w = lv_count_w + <ls_data>-count_w.
+    lv_count_e = lv_count_e + <ls_data>-count_e.
+    lv_count_s = lv_count_s + <ls_data>-count_s.
+    lv_count_c = lv_count_c + <ls_data>-count_c.
+
+    READ TABLE it_recip_tech TRANSPORTING NO FIELDS WITH KEY nsrecipient = <ls_data>-nsrecipient
+                                                             recipient = <ls_data>-recipient
+                                                             is_techuser = 'X'.
+    IF sy-subrc <> 0.
+      CLEAR: <ls_data>-count_a,<ls_data>-count_i.
+    ELSE.
+      CLEAR ev_hidden.
+    ENDIF.
+    lv_count_a = lv_count_a + <ls_data>-count_a.
+    lv_count_i = lv_count_i + <ls_data>-count_i.
+  ENDLOOP.
+
+
+  LOOP AT gt_tree_buffer ASSIGNING <lfs_tree_data>.
+    READ TABLE pt_tree_data ASSIGNING <ls_data>
+                                 WITH KEY ns = <lfs_tree_data>-node_data-ns
+                                          ifname = <lfs_tree_data>-node_data-ifname
+                                          ifversion = <lfs_tree_data>-node_data-ifversion
+                                          keyvalues = <lfs_tree_data>-node_data-keyvalues.
+    IF sy-subrc <> 0.
+      <lfs_tree_data>-mode = c_mode_delete.
+    ELSE.
+      ls_temp_node = <lfs_tree_data>-node_data.
+      lv_node_key = <lfs_tree_data>-node_data-node_key.
+      CLEAR ls_temp_node-node_key.
+      IF ls_temp_node <> <ls_data>.
+        <lfs_tree_data>-mode = c_mode_update.
+        <lfs_tree_data>-node_data = <ls_data>.
+        <lfs_tree_data>-node_data-node_key =  lv_node_key.
+        DELETE pt_tree_data INDEX sy-tabix.
+      ELSE.
+        DELETE pt_tree_data INDEX sy-tabix.
+        CLEAR <lfs_tree_data>-mode.
+      ENDIF.
+    ENDIF.
+  ENDLOOP.
+
+  LOOP AT pt_tree_data ASSIGNING <ls_data>.
+    ls_node_data-node_data = <ls_data>.
+    ls_node_data-mode = c_mode_insert.
+    ls_node_data-ns = <ls_data>-ns.
+    ls_node_data-parent = <ls_data>-parent.
+    APPEND ls_node_data TO gt_tree_buffer.
+  ENDLOOP.
+
+  LOOP AT gt_tree_buffer ASSIGNING <lfs_tree_data>.
+    CASE <lfs_tree_data>-mode.
+      WHEN c_mode_insert.
+        IF <lfs_tree_data>-node_data-parent = 0.
+          TRY.
+              CALL METHOD lr_nodes->add_node
+                EXPORTING
+                  related_node   = ''
+                  relationship   = if_salv_c_node_relation=>last_child
+                  data_row       = <lfs_tree_data>-node_data
+                  collapsed_icon = <lfs_tree_data>-node_data-collapsed_icon
+                  expanded_icon  = <lfs_tree_data>-node_data-expanded_icon
+                  text           = <lfs_tree_data>-node_data-node_text
+                RECEIVING
+                  node           = lr_node.
+            CATCH cx_salv_msg .                         "#EC NO_HANDLER
+          ENDTRY.
+        ELSE.
+          READ TABLE gt_tree_buffer ASSIGNING <lfs_tree_root>
+                            WITH KEY ns = <lfs_tree_data>-ns parent = 0.
+          ASSERT sy-subrc = 0.
+          IF <lfs_tree_root>-node_data-node_key IS NOT INITIAL.
+            TRY.
+                CALL METHOD lr_nodes->add_node
+                  EXPORTING
+                    related_node   = <lfs_tree_root>-node_data-node_key
+                    relationship   = if_salv_c_node_relation=>last_child
+                    data_row       = <lfs_tree_data>-node_data
+                    collapsed_icon = <lfs_tree_data>-node_data-collapsed_icon
+                    expanded_icon  = <lfs_tree_data>-node_data-expanded_icon
+                    text           = <lfs_tree_data>-node_data-node_text
+                  RECEIVING
+                    node           = lr_node.
+              CATCH cx_salv_msg .                       "#EC NO_HANDLER
+            ENDTRY.
+          ENDIF.
+        ENDIF.
+        <lfs_tree_data>-node_data-node_key = lr_node->get_key( ).
+
+        PERFORM f_update_icon USING lr_node '@3Z@' 'All Messages'(300) 'COUNT_ALL_TEXT' <lfs_tree_data>-node_data-count_all.
+        PERFORM f_update_icon USING lr_node '@F1@' 'Technical Errors'(301) 'COUNT_A_TEXT' <lfs_tree_data>-node_data-count_a.
+        PERFORM f_update_icon USING lr_node '@AG@' 'Application Errors'(302) 'COUNT_E_TEXT' <lfs_tree_data>-node_data-count_e.
+        PERFORM f_update_icon USING lr_node '@5D@' 'Warnings'(303) 'COUNT_W_TEXT' <lfs_tree_data>-node_data-count_w.
+        PERFORM f_update_icon USING lr_node '@CG@' 'In Process'(304) 'COUNT_I_TEXT' <lfs_tree_data>-node_data-count_i.
+        PERFORM f_update_icon USING lr_node '@DF@' 'Successfully Processed'(305) 'COUNT_S_TEXT' <lfs_tree_data>-node_data-count_s.
+        PERFORM f_update_icon USING lr_node '@3J@' 'Canceled Messages'(306) 'COUNT_C_TEXT' <lfs_tree_data>-node_data-count_c.
+
+        PERFORM f_update_icon_enh USING <lfs_tree_data>-node_data CHANGING lr_node.
+
+* for update
+      WHEN c_mode_update.
+        TRY.
+            lr_node = lr_nodes->get_node( <lfs_tree_data>-node_data-node_key ).
+          CATCH cx_salv_msg .                           "#EC NO_HANDLER
+        ENDTRY.
+
+        lr_node->set_data_row( <lfs_tree_data>-node_data ).
+        PERFORM f_update_icon USING lr_node '@3Z@' 'All Messages'(300) 'COUNT_ALL_TEXT' <lfs_tree_data>-node_data-count_all.
+        PERFORM f_update_icon USING lr_node '@F1@' 'Technical Errors'(301) 'COUNT_A_TEXT' <lfs_tree_data>-node_data-count_a.
+        PERFORM f_update_icon USING lr_node '@AG@' 'Application Errors'(302) 'COUNT_E_TEXT' <lfs_tree_data>-node_data-count_e.
+        PERFORM f_update_icon USING lr_node '@5D@' 'Warnings'(303) 'COUNT_W_TEXT' <lfs_tree_data>-node_data-count_w.
+        PERFORM f_update_icon USING lr_node '@CG@' 'In Process'(304) 'COUNT_I_TEXT' <lfs_tree_data>-node_data-count_i.
+        PERFORM f_update_icon USING lr_node '@DF@' 'Successfully Processed'(305) 'COUNT_S_TEXT' <lfs_tree_data>-node_data-count_s.
+        PERFORM f_update_icon USING lr_node '@3J@' 'Canceled Messages'(306) 'COUNT_C_TEXT' <lfs_tree_data>-node_data-count_c.
+
+        PERFORM f_update_icon_enh USING <lfs_tree_data>-node_data CHANGING lr_node.
+
+
+      WHEN c_mode_delete.
+        TRY.
+            lr_node = lr_nodes->get_node( <lfs_tree_data>-node_data-node_key ).
+            lr_node->delete( ).
+            lr_node = lr_nodes->get_node( <lfs_tree_data>-node_data-node_key ).
+          CATCH cx_salv_msg .                           "#EC NO_HANDLER
+        ENDTRY.
+        DELETE TABLE gt_tree_buffer FROM <lfs_tree_data>.
+      WHEN OTHERS.
+    ENDCASE.
+  ENDLOOP.
+
+ENDFORM.                    "f_add_tree_nodes
+
+*&---------------------------------------------------------------------*
+*&      Form  F_USER_COMMAND_0100
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f_user_command_0100 .
+  CASE gv_okcode_0100.
+    WHEN 'EXIT'.
+      LEAVE TO SCREEN 0.
+    WHEN 'BACK'.
+      LEAVE TO SCREEN 0.
+    WHEN 'CANCEL'.
+      LEAVE TO SCREEN 0.
+    WHEN 'SELECT_DATES'.
+*      BREAK-POINT.
+      PERFORM f_update_tree_0100.
+    WHEN 'REFRESH'.
+      gv_load_from_db = abap_true.
+      PERFORM f_update_tree_0100.
+    WHEN 'SAVE'.
+      PERFORM f_save_layout.
+    WHEN OTHERS.
+  ENDCASE.
+ENDFORM.                    " F_USER_COMMAND_0100
+
+*&---------------------------------------------------------------------*
+*&      Form  F_UPDATE_CALENDAR_0100
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f_update_calendar_0100 .
+  DATA: lv_date_begin TYPE cnca_utc_date,
+        lv_date_end   TYPE cnca_utc_date.
+  lv_date_begin = gv_date_begin_0100.
+  lv_date_end = gv_date_end_0100.
+  CALL METHOD gr_calendar_0100->set_selection
+    EXPORTING
+      date_begin = lv_date_begin
+      date_end   = lv_date_end
+*     selection_table =
+*     no_scroll  = ' '
+    EXCEPTIONS
+      cntl_error = 1
+      OTHERS     = 2.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+               WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+ENDFORM.                    " F_UPDATE_CALENDAR_0100
+*&---------------------------------------------------------------------*
+*&      Form  F_STATUS_0100
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f_status_0100 .
+  DATA: lv_acc_mode TYPE boolean.
+  GET PARAMETER ID '/AIF/ACC_MODE' FIELD lv_acc_mode.
+  SET PF-STATUS '0100'.
+  SET TITLEBAR '0100'.
+
+* hide controls if no date selection
+  LOOP AT SCREEN.
+    IF screen-group1 = 'DT'.
+      IF gv_select_dates_0100 IS INITIAL.
+        screen-active = 0.
+      ELSE.
+        screen-active = 1.
+      ENDIF.
+      MODIFY SCREEN.
+    ENDIF.
+  ENDLOOP.
+
+* hide calendar control if no date selection
+*  IF lv_acc_mode = space.
+  IF gv_select_dates_0100 IS INITIAL.
+    gr_calendar_0100->set_visible( '' ).
+  ELSE.
+    gr_calendar_0100->set_visible( 'X' ).
+  ENDIF.
+*  ELSE.
+**    gr_calendar_0100->set_visible( 'X' ).
+*  ENDIF.
+
+ENDFORM.                    " F_STATUS_0100
+*&---------------------------------------------------------------------*
+*&      Form  F_UPDATE_TREE_0100
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f_update_tree_0100 .
+
+* determine all roles of the current user
+  DATA: lt_roles           TYPE TABLE OF str_agrs,
+        lt_return          TYPE TABLE OF bapiret2,
+        lt_recipients      TYPE TABLE OF /aif/t_alrt_rec,
+        lt_alrt_user       TYPE TABLE OF /aif/t_alrt_user,
+        lt_alrt_role       TYPE TABLE OF /aif/t_alrt_role,
+        lt_recip_tech      TYPE TABLE OF ts_recip_tech,
+        ls_recip_tech      TYPE ts_recip_tech,
+        lv_tech_col_hidden TYPE char1,
+        lr_columns         TYPE REF TO cl_salv_columns_tree,
+        lr_column          TYPE REF TO cl_salv_column,
+        lt_alrt_db         TYPE TABLE OF /aif/alrt_db_tbl,
+        lt_key_fields      TYPE TABLE OF /aif/t_inf_kflds,
+        ls_key_values      TYPE /aif/keyvalues,
+        ls_key             TYPE /aif/key_data,
+        lr_data            TYPE REF TO data,
+        ls_recipient       TYPE /aif/t_alrt_rec,
+        lt_all_keys_0101   TYPE TABLE OF /aif/key_data_st, " new structure for tree display
+        lt_tree_data       TYPE TABLE OF /aif/tree_data,
+        lv_nr              TYPE i VALUE 1,
+        lt_ns              TYPE TABLE OF /aif/t_ns,
+        ls_ns              TYPE /aif/t_ns,
+        lt_nst             TYPE TABLE OF /aif/t_nst,
+        ls_nst             TYPE /aif/t_nst,
+        lt_finf            TYPE TABLE OF /aif/t_finf,
+        ls_finf            TYPE /aif/t_finf,
+        ls_finft           TYPE /aif/t_finft,
+*        DBA Access
+        lr_dba_mgr         TYPE REF TO /aif/cl_dba_reader_mgr,
+        lr_dba_inf_kflds   TYPE REF TO /aif/if_dba_inf_kflds,
+        lv_license         TYPE abap_bool,
+        lv_trail           TYPE abap_bool,
+        lv_days_left       TYPE i,
+        ls_inf_kflds_out   TYPE /aif/t_inf_kflds.
+  FIELD-SYMBOLS: <ls_key_data> TYPE /aif/key_data,
+                 <ls_ns>       TYPE /aif/t_ns,
+                 <ls_nst>      TYPE /aif/t_nst,
+                 <ls_finf>     TYPE /aif/t_finf.
+  FIELD-SYMBOLS: <lv_alrt_user> TYPE /aif/t_alrt_user,
+                 <lv_alrt_role> TYPE /aif/t_alrt_role,
+                 <ls_data>      TYPE any,
+                 <ls_data2>     TYPE any,
+                 <ls_alrt_db>   TYPE /aif/alrt_db_tbl,
+                 <lv_ns>        TYPE /aif/ns,
+                 <lv_ifname>    TYPE /aif/ifname,
+                 <lv_ifversion> TYPE /aif/ifversion,
+                 <lv_nsrecip>   TYPE /aif/ns,
+                 <lv_recipient> TYPE /aif/alrt_rec,
+                 <ls_key_field> TYPE /aif/t_inf_kflds,
+                 <lv_key_value> TYPE any.
+*  Note 1991612
+  DATA: lt_users TYPE TABLE OF str_users,
+        ls_user  TYPE str_users.
+* End Note 1991612
+  DATA ls_alrt_user                  TYPE        /aif/t_alrt_user.
+  DATA lr_cl_alrt_user               TYPE REF TO /aif/if_dba_alrt_user.
+  DATA lr_cl_alrt_roles              TYPE REF TO /aif/if_dba_alrt_role.
+  DATA lr_cl_alrt_rec                TYPE REF TO /aif/if_dba_alrt_rec.
+  DATA lr_badi                       TYPE REF TO /aif/column_change.
+  DATA lr_liense_check TYPE REF TO /aif/cl_license_check.
+  DATA ls_time_span         TYPE /aif/time_span_st.
+  DATA lv_num_if            TYPE i.
+  DATA lr_msg_stat_hdb      TYPE REF TO /aif/cl_msg_stat_hdb.
+  DATA lt_date_range        TYPE /aif/tt_create_date_range.
+
+* Remember the layout after first display
+  IF gv_first_display2 <> 'X'.
+    gr_alv_tree_0100->get_metadata( ).
+  ENDIF.
+  CLEAR gv_first_display2.
+
+* change header to "refreshing..."
+  REFRESH gt_all_keys_0102.
+* get all roles of the current user
+  lr_cl_alrt_roles ?=  /aif/cl_dba_reader_mgr=>get_instance( )->get_dba_alrt_role( ).
+  lr_cl_alrt_user  ?=  /aif/cl_dba_reader_mgr=>get_instance( )->get_dba_alrt_user( ).
+  lr_cl_alrt_rec   ?=  /aif/cl_dba_reader_mgr=>get_instance( )->get_dba_alrt_rec( ).
+* Note 1991612 & 1993406
+  REFRESH: lt_users.
+  ls_user-uname =  sy-uname.
+  APPEND ls_user TO lt_users.
+
+  CALL FUNCTION 'PRGN_READ_ACTIVITY_GROUPS'
+    TABLES
+      users                        = lt_users
+      activity_groups_users        = lt_roles
+    EXCEPTIONS
+      no_activity_groups_available = 1
+      OTHERS                       = 2.
+*End Note 1991612 & 1993406
+  CREATE OBJECT lr_liense_check .
+  CALL METHOD lr_liense_check->check_license
+    IMPORTING
+      ev_success             = lv_license
+      ev_days_left           = lv_days_left
+      ev_trial_period_active = lv_trail
+      ev_num_if              = lv_num_if.
+
+* determine all recipients of the current user (only with flag "include in overview")
+
+* get the recipients the user has
+
+  ls_alrt_user-uname            =  ls_user-uname.
+  ls_alrt_user-include_overview = abap_true.
+  TRY.
+      lt_alrt_user = lr_cl_alrt_user->read_table(    EXPORTING      is_key   = ls_alrt_user ).
+    CATCH /aif/cx_dba_alrt .
+*      RETURN. "Removed by Note 2667672
+      " Do nothing, empty result is ok  Note 2667672
+  ENDTRY.
+
+* Note 1991612
+  IF NOT lt_roles[] IS INITIAL.
+* End Note 1991612
+
+    lt_alrt_role =   lr_cl_alrt_roles->read_table_for_roles( EXPORTING it_str_agrs = lt_roles[] iv_include_overview = abap_true ) .
+
+* Note 1991612
+  ENDIF.
+* End Note 1991612
+
+  REFRESH: lt_recipients.
+  IF NOT lt_alrt_user[] IS INITIAL.
+    TRY.
+        lt_recipients =   lr_cl_alrt_rec->read_table_for_user( EXPORTING it_alrt_user = lt_alrt_user ).
+      CATCH /aif/cx_dba_alrt .
+        " Do nothing, empty result is ok
+    ENDTRY.
+  ENDIF.
+
+
+  IF NOT lt_alrt_role[] IS INITIAL.
+    TRY.
+        DATA(lt_recipients_2) =   lr_cl_alrt_rec->read_table_for_role( EXPORTING it_alrt_role = lt_alrt_role ).
+      CATCH /aif/cx_dba_alrt .
+        " Do nothing, empty result is ok
+    ENDTRY.
+    APPEND LINES OF lt_recipients_2 TO  lt_recipients.
+  ENDIF.
+  SORT lt_recipients BY nsrecipient recipient AS TEXT.
+  DELETE ADJACENT DUPLICATES FROM lt_recipients COMPARING nsrecipient recipient.
+  IF lt_recipients[] IS INITIAL.
+    MESSAGE w233(/aif/mes) DISPLAY LIKE 'W'.
+    EXIT.
+  ENDIF.
+
+* recipient <-> technical user
+  REFRESH lt_recip_tech.
+  LOOP AT lt_recipients INTO ls_recipient.
+    MOVE-CORRESPONDING ls_recipient TO ls_recip_tech.
+    READ TABLE lt_alrt_user ASSIGNING <lv_alrt_user> WITH KEY nsrecipient =  ls_recipient-nsrecipient
+                                     recipient = ls_recipient-recipient.
+    IF sy-subrc <> 0.
+      READ TABLE lt_alrt_role ASSIGNING <lv_alrt_role> WITH KEY nsrecipient =  ls_recipient-nsrecipient
+                                     recipient = ls_recipient-recipient.
+      IF sy-subrc = 0.
+        ls_recip_tech-is_techuser = <lv_alrt_role>-is_techuser.
+      ENDIF.
+    ELSE.
+      ls_recip_tech-is_techuser = <lv_alrt_user>-is_techuser.
+    ENDIF.
+    APPEND ls_recip_tech TO lt_recip_tech.
+    CLEAR ls_recip_tech.
+  ENDLOOP.
+
+  APPEND '/AIF/T_ALRT_INF' TO lt_alrt_db.  "interface specific recipient
+  APPEND '/AIF/T_ALRT_DEF' TO lt_alrt_db.  " definition recipient
+  SELECT dbname APPENDING TABLE lt_alrt_db
+    FROM /aif/t_alrt_inf
+    WHERE dbname <> ''.                                 "#EC CI_NOFIELD
+  SORT lt_alrt_db AS TEXT.
+  DELETE ADJACENT DUPLICATES FROM lt_alrt_db.
+*  DBA Access
+  lr_dba_mgr = /aif/cl_dba_reader_mgr=>get_instance( ).
+  lr_dba_inf_kflds = lr_dba_mgr->get_dba_inf_kflds( ).
+
+  REFRESH: gt_all_keys_0100.
+  LOOP AT lt_alrt_db ASSIGNING <ls_alrt_db>.
+    TRY.
+        CREATE DATA lr_data TYPE (<ls_alrt_db>).
+        ASSIGN lr_data->* TO <ls_data>.
+        ASSERT sy-subrc = 0.
+        SELECT * INTO <ls_data>
+              FROM (<ls_alrt_db>)
+              FOR ALL ENTRIES IN lt_recipients
+              WHERE nsrecip = lt_recipients-nsrecipient
+              AND   recipient = lt_recipients-recipient. "#EC CI_SEL_NESTED
+          CREATE DATA ls_key-data TYPE (<ls_alrt_db>).
+          ASSIGN ls_key-data->* TO <ls_data2>.
+          ASSERT sy-subrc = 0.
+          <ls_data2> = <ls_data>.
+          ASSIGN COMPONENT 'NS' OF STRUCTURE <ls_data> TO <lv_ns>.
+          ASSERT sy-subrc = 0.
+          ASSIGN COMPONENT 'IFNAME' OF STRUCTURE <ls_data> TO <lv_ifname>.
+          ASSERT sy-subrc = 0.
+          ASSIGN COMPONENT 'IFVERSION' OF STRUCTURE <ls_data> TO <lv_ifversion>.
+          ASSERT sy-subrc = 0.
+          ASSIGN COMPONENT 'NSRECIP' OF STRUCTURE <ls_data> TO <lv_nsrecip>.
+          ASSERT sy-subrc = 0.
+          ASSIGN COMPONENT 'RECIPIENT' OF STRUCTURE <ls_data> TO <lv_recipient>.
+          ASSERT sy-subrc = 0.
+
+*   determine all key fields relevant for recipient determination
+
+          ls_inf_kflds_out-ns = <lv_ns>.
+          ls_inf_kflds_out-ifname = <lv_ifname>.
+          ls_inf_kflds_out-ifver  = <lv_ifversion>.
+          TRY.
+              lt_key_fields = lr_dba_inf_kflds->read_table( is_key = ls_inf_kflds_out ).
+            CATCH /aif/cx_dba_reader.
+              CLEAR lt_key_fields.
+          ENDTRY.
+          IF lt_key_fields IS INITIAL.
+            CLEAR ls_inf_kflds_out-ifver.
+            TRY.
+                lt_key_fields = lr_dba_inf_kflds->read_table( is_key = ls_inf_kflds_out ).
+              CATCH /aif/cx_dba_reader.
+                CLEAR lt_key_fields.
+            ENDTRY.
+          ENDIF.
+          IF lt_key_fields IS INITIAL.
+            CLEAR ls_inf_kflds_out-ifname.
+            TRY.
+                lt_key_fields = lr_dba_inf_kflds->read_table( is_key = ls_inf_kflds_out ).
+              CATCH /aif/cx_dba_reader.
+                CLEAR lt_key_fields.
+            ENDTRY.
+          ENDIF.
+          IF lt_key_fields IS INITIAL.
+            CLEAR ls_inf_kflds_out-ns.
+            TRY.
+                lt_key_fields = lr_dba_inf_kflds->read_table( is_key = ls_inf_kflds_out ).
+              CATCH /aif/cx_dba_reader.
+                CLEAR lt_key_fields.
+            ENDTRY.
+          ENDIF.
+          REFRESH: ls_key-keyvalues.
+          IF sy-subrc = 0.
+            LOOP AT lt_key_fields ASSIGNING <ls_key_field>
+                    WHERE alert_relevant = 'X'.          "#EC CI_NESTED
+              IF <ls_key_field>-alert_fieldname IS INITIAL.
+                ls_key_values-alert_fieldname = <ls_key_field>-fieldname.
+              ELSE.
+                ls_key_values-alert_fieldname = <ls_key_field>-alert_fieldname.
+              ENDIF.
+              ls_key_values-fieldname = <ls_key_field>-fieldname.
+              ls_key_values-sp_name = <ls_key_field>-sp_name.
+              ASSIGN COMPONENT ls_key_values-alert_fieldname OF STRUCTURE <ls_data> TO <lv_key_value>.
+              IF sy-subrc = 0.
+                ls_key_values-value = <lv_key_value>.
+                APPEND ls_key_values TO ls_key-keyvalues.
+              ENDIF.
+            ENDLOOP.
+          ENDIF.
+          ls_key-nsrecipient = <lv_nsrecip>.
+          ls_key-recipient = <lv_recipient>.
+          ls_key-ns = <lv_ns>.
+          ls_key-ifname = <lv_ifname>.
+          ls_key-ifversion = <lv_ifversion>.
+          ls_key-dbname = <ls_alrt_db>.
+          READ TABLE lt_recip_tech TRANSPORTING NO FIELDS WITH KEY
+                              nsrecipient = ls_key-nsrecipient
+                              recipient = ls_key-recipient
+                              is_techuser = abap_true.
+          IF sy-subrc = 0.
+            ls_key-is_techuser = abap_true.
+          ELSE.
+            ls_key-is_techuser = abap_false.
+          ENDIF.
+          IF lv_license = abap_false.
+            IF ls_key-ns+0(1) NE |/|.
+              IF ls_key-ns EQ |CUAN|.
+                APPEND ls_key TO gt_all_keys_0100.
+              ELSE.
+                IF lv_trail = abap_true AND lv_days_left > 0.
+                  gv_cust_if = abap_true.
+                  APPEND ls_key TO gt_all_keys_0100.
+                ELSE.
+                  gv_cust_if = abap_true.
+                ENDIF.
+              ENDIF.
+            ELSE.
+              APPEND ls_key TO gt_all_keys_0100.
+            ENDIF.
+          ELSE.
+            APPEND ls_key TO gt_all_keys_0100.
+          ENDIF.
+        ENDSELECT.
+      CATCH cx_root.
+        MESSAGE w281(/aif/mes) WITH <ls_alrt_db> DISPLAY LIKE 'W'.
+    ENDTRY.
+  ENDLOOP.
+
+* fill information into tree
+
+
+**** new structure to show tree.
+*     - First level:        namespace (summarize).
+*        -- second level:   namespace interface/version + same recipient (summarize).
+*           -- third level: namespace interface/version + multiple recipients (summarize).
+*   get all namespace interface version recipient into one table
+  PERFORM f_get_all_keys_per_recipient USING gt_all_keys_0100 CHANGING lt_all_keys_0101.
+*   organize data for combine keyvalues for same recipient.
+  PERFORM f_combine_keyvalues USING lt_all_keys_0101 CHANGING gt_all_keys_0102.
+
+  IF gv_load_from_db = abap_true.
+*   without date selection for data retrieve from db.
+    CLEAR lt_date_range.
+    CLEAR ls_time_span.
+    IF sy-dbsys <> /aif/if_globals=>gc_hdb_sys .
+     /aif/cl_aif_msg_statistic_pro=>reload_statistics(
+       EXPORTING
+         it_key_data   = gt_all_keys_0102
+         it_date_range = lt_date_range ).
+    ELSEIF sy-dbsys = /aif/if_globals=>gc_hdb_sys.
+      lr_msg_stat_hdb = /aif/cl_msg_stat_hdb=>get_instance( ).
+      lr_msg_stat_hdb->read_all_by_time(
+         it_key_data   = gt_all_keys_0102
+         is_time_span  = ls_time_span ).
+    ENDIF.
+  ELSE.
+    "handle it in buffer table.
+  ENDIF.
+
+*   build tree for all interface.
+  PERFORM f_build_tree USING gt_all_keys_0102 lt_recip_tech lt_roles[] CHANGING lt_tree_data.
+
+  IF 1 = 2. MESSAGE e136(/aif/error_handling). ENDIF. " dummy statement for SE91 usage
+  CALL FUNCTION 'PROGRESS_INDICATOR'
+    EXPORTING
+      i_msgid              = '/AIF/ERROR_HANDLING'
+      i_msgno              = '136'
+      i_output_immediately = 'X'.
+
+  PERFORM f_add_tree_nodes_new USING lt_recip_tech CHANGING lt_tree_data
+                                                      lv_tech_col_hidden .
+
+* hide the tech columns if no tech user assigned
+  IF lv_tech_col_hidden IS NOT INITIAL.
+    TRY.
+        lr_columns = gr_alv_tree_0100->get_columns( ).
+        lr_column = lr_columns->get_column( 'COUNT_A_TEXT' ).
+        lr_column->set_technical( abap_true ).
+        lr_column = lr_columns->get_column( 'COUNT_I_TEXT' ).
+        lr_column->set_technical( abap_true ).
+      CATCH cx_salv_not_found .                         "#EC NO_HANDLER
+    ENDTRY.
+  ELSE.
+    TRY.
+        lr_columns = gr_alv_tree_0100->get_columns( ).
+        lr_column = lr_columns->get_column( 'COUNT_A_TEXT' ).
+        lr_column->set_technical( abap_false ).
+        lr_column = lr_columns->get_column( 'COUNT_I_TEXT' ).
+        lr_column->set_technical( abap_false ).
+      CATCH cx_salv_not_found .                         "#EC NO_HANDLER
+    ENDTRY.
+  ENDIF.
+
+
+  GET BADI lr_badi.
+  IF lr_badi IS NOT INITIAL.
+    CALL BADI lr_badi->change_column
+      EXPORTING
+        iv_web_or_gui = 'X'
+        ir_columns    = lr_columns
+      CHANGING
+        cr_column     = lr_column.
+  ENDIF.
+
+* set header to "last refresh on..."
+  PERFORM f_set_tree_header_last_refresh.
+  gr_alv_tree_0100->display( ).
+
+*  Reset calendar date color and number
+  IF NOT gr_calendar_0100 IS INITIAL AND gv_load_from_db = abap_true.
+    CALL METHOD gr_calendar_0100->reset_day_info.
+    PERFORM f_set_date_color.
+  ENDIF.
+  CLEAR gv_load_from_db.
+ENDFORM.                    " F_UPDATE_TREE_0100
+
+*&---------------------------------------------------------------------*
+*&      Form  f_update_tree_0100_ds
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM f_update_tree_0100_ds .
+
+* determine all roles of the current user
+  DATA: lt_roles           TYPE TABLE OF str_agrs,
+        lt_return          TYPE TABLE OF bapiret2,
+        lt_recipients      TYPE TABLE OF /aif/t_alrt_rec,
+        lt_alrt_user       TYPE TABLE OF /aif/t_alrt_user,
+        lt_alrt_role       TYPE TABLE OF /aif/t_alrt_role,
+        lt_recip_tech      TYPE TABLE OF ts_recip_tech,
+        ls_recip_tech      TYPE ts_recip_tech,
+        lv_tech_col_hidden TYPE char1,
+        lr_columns         TYPE REF TO cl_salv_columns_tree,
+        lr_column          TYPE REF TO cl_salv_column,
+        lt_alrt_db         TYPE TABLE OF /aif/alrt_db_tbl,
+        lt_key_fields      TYPE TABLE OF /aif/t_inf_kflds,
+        ls_key_values      TYPE /aif/keyvalues,
+        ls_key             TYPE /aif/key_data,
+        lr_data            TYPE REF TO data,
+        ls_recipient       TYPE /aif/t_alrt_rec,
+        lt_all_keys_0101   TYPE TABLE OF /aif/key_data_st, " new structure for tree display
+        lt_tree_data       TYPE TABLE OF /aif/tree_data,
+        lv_nr              TYPE i VALUE 1,
+        lt_ns              TYPE TABLE OF /aif/t_ns,
+        ls_ns              TYPE /aif/t_ns,
+        lt_nst             TYPE TABLE OF /aif/t_nst,
+        ls_nst             TYPE /aif/t_nst,
+        lt_finf            TYPE TABLE OF /aif/t_finf,
+        ls_finf            TYPE /aif/t_finf,
+        lv_license         TYPE abap_bool,
+        lv_trail           TYPE abap_bool,
+        lv_days_left       TYPE i,
+        lv_num_if          TYPE i,
+        ls_finft           TYPE /aif/t_finft,
+*        DBA Access
+        lr_dba_mgr         TYPE REF TO /aif/cl_dba_reader_mgr,
+        lr_liense_check    TYPE REF TO /aif/cl_license_check,
+        lr_dba_inf_kflds   TYPE REF TO /aif/if_dba_inf_kflds,
+        ls_inf_kflds_out   TYPE /aif/t_inf_kflds.
+  FIELD-SYMBOLS: <ls_key_data> TYPE /aif/key_data,
+                 <ls_ns>       TYPE /aif/t_ns,
+                 <ls_nst>      TYPE /aif/t_nst,
+                 <ls_finf>     TYPE /aif/t_finf.
+  FIELD-SYMBOLS: <lv_alrt_user> TYPE /aif/t_alrt_user,
+                 <lv_alrt_role> TYPE /aif/t_alrt_role,
+                 <ls_data>      TYPE any,
+                 <ls_data2>     TYPE any,
+                 <ls_alrt_db>   TYPE /aif/alrt_db_tbl,
+                 <lv_ns>        TYPE /aif/ns,
+                 <lv_ifname>    TYPE /aif/ifname,
+                 <lv_ifversion> TYPE /aif/ifversion,
+                 <lv_nsrecip>   TYPE /aif/ns,
+                 <lv_recipient> TYPE /aif/alrt_rec,
+                 <ls_key_field> TYPE /aif/t_inf_kflds,
+                 <lv_key_value> TYPE any.
+  DATA: lt_users TYPE TABLE OF str_users,
+        ls_user  TYPE str_users.
+
+  DATA: ls_time_span         TYPE /aif/time_span_st,
+        lr_msg_stat_hdb      TYPE REF TO /aif/cl_msg_stat_hdb.
+  DATA: lt_date_range        TYPE /aif/tt_create_date_range.
+
+  CREATE OBJECT lr_liense_check .
+  CALL METHOD lr_liense_check->check_license
+    IMPORTING
+      ev_success             = lv_license
+      ev_days_left           = lv_days_left
+      ev_trial_period_active = lv_trail
+      ev_num_if              = lv_num_if.
+* Remember the layout after first display
+  IF gv_first_display2 <> 'X'.
+    gr_alv_tree_0100->get_metadata( ).
+  ENDIF.
+  CLEAR gv_first_display2.
+
+* change header to "refreshing..."
+  REFRESH gt_all_keys_0102.
+* get all roles of the current user
+  REFRESH: lt_users.
+  ls_user-uname =  sy-uname.
+  APPEND ls_user TO lt_users.
+
+  CALL FUNCTION 'PRGN_READ_ACTIVITY_GROUPS'
+    TABLES
+      users                        = lt_users
+      activity_groups_users        = lt_roles
+    EXCEPTIONS
+      no_activity_groups_available = 1
+      OTHERS                       = 2.
+
+* determine all recipients of the current user (only with flag "include in overview")
+* get the recipients the user has
+  SELECT * INTO TABLE lt_alrt_user
+    FROM /aif/t_alrt_user
+    WHERE uname = sy-uname
+    AND   include_overview = 'X'.                       "#EC CI_NOFIRST
+
+  IF NOT lt_roles[] IS INITIAL.
+    SELECT * INTO TABLE lt_alrt_role
+    FROM /aif/t_alrt_role
+    FOR ALL ENTRIES IN lt_roles
+    WHERE agr_name = lt_roles-agr_name
+    AND   include_overview = 'X'.                       "#EC CI_NOFIRST
+  ENDIF.
+
+  REFRESH: lt_recipients.
+  IF NOT lt_alrt_user[] IS INITIAL.
+    SELECT * APPENDING TABLE lt_recipients
+      FROM /aif/t_alrt_rec
+      FOR ALL ENTRIES IN lt_alrt_user
+      WHERE nsrecipient = lt_alrt_user-nsrecipient
+      AND   recipient = lt_alrt_user-recipient.
+  ENDIF.
+  IF NOT lt_alrt_role[] IS INITIAL.
+    SELECT * APPENDING TABLE lt_recipients
+      FROM /aif/t_alrt_rec
+      FOR ALL ENTRIES IN lt_alrt_role
+      WHERE nsrecipient = lt_alrt_role-nsrecipient
+      AND   recipient = lt_alrt_role-recipient.
+  ENDIF.
+  SORT lt_recipients BY nsrecipient recipient AS TEXT.
+  DELETE ADJACENT DUPLICATES FROM lt_recipients COMPARING nsrecipient recipient.
+  IF lt_recipients[] IS INITIAL.
+*    MESSAGE w233(/aif/mes) DISPLAY LIKE 'W'.
+    EXIT.
+  ENDIF.
+
+* recipient <-> technical user
+  REFRESH lt_recip_tech.
+  LOOP AT lt_recipients INTO ls_recipient.
+    MOVE-CORRESPONDING ls_recipient TO ls_recip_tech.
+    READ TABLE lt_alrt_user ASSIGNING <lv_alrt_user> WITH KEY nsrecipient =  ls_recipient-nsrecipient
+                                     recipient = ls_recipient-recipient.
+    IF sy-subrc <> 0.
+      READ TABLE lt_alrt_role ASSIGNING <lv_alrt_role> WITH KEY nsrecipient =  ls_recipient-nsrecipient
+                                     recipient = ls_recipient-recipient.
+      IF sy-subrc = 0.
+        ls_recip_tech-is_techuser = <lv_alrt_role>-is_techuser.
+      ENDIF.
+    ELSE.
+      ls_recip_tech-is_techuser = <lv_alrt_user>-is_techuser.
+    ENDIF.
+    APPEND ls_recip_tech TO lt_recip_tech.
+    CLEAR ls_recip_tech.
+  ENDLOOP.
+
+  APPEND '/AIF/T_ALRT_INF' TO lt_alrt_db.  "interface specific recipient
+  APPEND '/AIF/T_ALRT_DEF' TO lt_alrt_db.  " definition recipient
+  SELECT dbname APPENDING TABLE lt_alrt_db
+    FROM /aif/t_alrt_inf
+    WHERE dbname <> ''.                                 "#EC CI_NOFIELD
+  SORT lt_alrt_db AS TEXT.
+  DELETE ADJACENT DUPLICATES FROM lt_alrt_db.
+
+*  DBA Access
+  lr_dba_mgr = /aif/cl_dba_reader_mgr=>get_instance( ).
+  lr_dba_inf_kflds = lr_dba_mgr->get_dba_inf_kflds( ).
+
+  REFRESH: gt_all_keys_0100.
+  LOOP AT lt_alrt_db ASSIGNING <ls_alrt_db>.
+    TRY.
+        CREATE DATA lr_data TYPE (<ls_alrt_db>).
+        ASSIGN lr_data->* TO <ls_data>.
+        ASSERT sy-subrc = 0.
+        SELECT * INTO <ls_data>
+              FROM (<ls_alrt_db>)
+              FOR ALL ENTRIES IN lt_recipients
+              WHERE nsrecip = lt_recipients-nsrecipient
+              AND   recipient = lt_recipients-recipient. "#EC CI_SEL_NESTED
+          CREATE DATA ls_key-data TYPE (<ls_alrt_db>).
+          ASSIGN ls_key-data->* TO <ls_data2>.
+          ASSERT sy-subrc = 0.
+          <ls_data2> = <ls_data>.
+          ASSIGN COMPONENT 'NS' OF STRUCTURE <ls_data> TO <lv_ns>.
+          ASSERT sy-subrc = 0.
+          ASSIGN COMPONENT 'IFNAME' OF STRUCTURE <ls_data> TO <lv_ifname>.
+          ASSERT sy-subrc = 0.
+          ASSIGN COMPONENT 'IFVERSION' OF STRUCTURE <ls_data> TO <lv_ifversion>.
+          ASSERT sy-subrc = 0.
+          ASSIGN COMPONENT 'NSRECIP' OF STRUCTURE <ls_data> TO <lv_nsrecip>.
+          ASSERT sy-subrc = 0.
+          ASSIGN COMPONENT 'RECIPIENT' OF STRUCTURE <ls_data> TO <lv_recipient>.
+          ASSERT sy-subrc = 0.
+
+
+* determine all key fields relevant for recipient determination
+          ls_inf_kflds_out-ns = <lv_ns>.
+          ls_inf_kflds_out-ifname = <lv_ifname>.
+          ls_inf_kflds_out-ifver  = <lv_ifversion>.
+          TRY.
+              lt_key_fields = lr_dba_inf_kflds->read_table( is_key = ls_inf_kflds_out ).
+            CATCH /aif/cx_dba_reader.
+              CLEAR lt_key_fields.
+          ENDTRY.
+          IF lt_key_fields IS INITIAL.
+            CLEAR ls_inf_kflds_out-ifver.
+            TRY.
+                lt_key_fields = lr_dba_inf_kflds->read_table( is_key = ls_inf_kflds_out ).
+              CATCH /aif/cx_dba_reader.
+                CLEAR lt_key_fields.
+            ENDTRY.
+          ENDIF.
+          IF lt_key_fields IS INITIAL.
+            CLEAR ls_inf_kflds_out-ifname.
+            TRY.
+                lt_key_fields = lr_dba_inf_kflds->read_table( is_key = ls_inf_kflds_out ).
+              CATCH /aif/cx_dba_reader.
+                CLEAR lt_key_fields.
+            ENDTRY.
+          ENDIF.
+          IF lt_key_fields IS INITIAL.
+            CLEAR ls_inf_kflds_out-ns.
+            TRY.
+                lt_key_fields = lr_dba_inf_kflds->read_table( is_key = ls_inf_kflds_out ).
+              CATCH /aif/cx_dba_reader.
+                CLEAR lt_key_fields.
+            ENDTRY.
+          ENDIF.
+          REFRESH: ls_key-keyvalues.
+          IF sy-subrc = 0.
+            LOOP AT lt_key_fields ASSIGNING <ls_key_field>
+                    WHERE alert_relevant = 'X'.          "#EC CI_NESTED
+              IF <ls_key_field>-alert_fieldname IS INITIAL.
+                ls_key_values-alert_fieldname = <ls_key_field>-fieldname.
+              ELSE.
+                ls_key_values-alert_fieldname = <ls_key_field>-alert_fieldname.
+              ENDIF.
+              ls_key_values-fieldname = <ls_key_field>-fieldname.
+              ls_key_values-sp_name = <ls_key_field>-sp_name.
+              ASSIGN COMPONENT ls_key_values-alert_fieldname OF STRUCTURE <ls_data> TO <lv_key_value>.
+              IF sy-subrc = 0.
+                ls_key_values-value = <lv_key_value>.
+                APPEND ls_key_values TO ls_key-keyvalues.
+              ENDIF.
+            ENDLOOP.
+          ENDIF.
+          ls_key-nsrecipient = <lv_nsrecip>.
+          ls_key-recipient = <lv_recipient>.
+          ls_key-ns = <lv_ns>.
+          ls_key-ifname = <lv_ifname>.
+          ls_key-ifversion = <lv_ifversion>.
+          ls_key-dbname = <ls_alrt_db>.
+          READ TABLE lt_recip_tech TRANSPORTING NO FIELDS WITH KEY
+                              nsrecipient = ls_key-nsrecipient
+                              recipient = ls_key-recipient
+                              is_techuser = abap_true.
+          IF sy-subrc = 0.
+            ls_key-is_techuser = abap_true.
+          ELSE.
+            ls_key-is_techuser = abap_false.
+          ENDIF.
+          IF lv_license = abap_false.
+            IF ls_key-ns+0(1) NE |/|.
+              IF ls_key-ns EQ |CUAN|.
+                APPEND ls_key TO gt_all_keys_0100.
+              ELSE.
+                IF lv_trail = abap_true AND lv_days_left > 0.
+                  gv_cust_if = abap_true.
+                  APPEND ls_key TO gt_all_keys_0100.
+                ELSE.
+                  gv_cust_if = abap_true.
+                ENDIF.
+              ENDIF.
+            ELSE.
+              APPEND ls_key TO gt_all_keys_0100.
+            ENDIF.
+          ELSE.
+            APPEND ls_key TO gt_all_keys_0100.
+          ENDIF.
+        ENDSELECT.
+      CATCH cx_root.
+        MESSAGE w281(/aif/mes) WITH <ls_alrt_db> DISPLAY LIKE 'W'.
+    ENDTRY.
+  ENDLOOP.
+
+* fill information into tree
+**** new structure to show tree.
+*     - First level:        namespace (summarize).
+*        -- second level:   namespace interface/version + same recipient (summarize).
+*           -- third level: namespace interface/version + multiple recipients (summarize).
+*   get all namespace interface version recipient into one table
+  PERFORM f_get_all_keys_per_recipient USING gt_all_keys_0100 CHANGING lt_all_keys_0101.
+*   organize data for combine keyvalues for same recipient.
+  PERFORM f_combine_keyvalues USING lt_all_keys_0101 CHANGING gt_all_keys_0102.
+
+  IF gv_load_from_db = abap_true.
+*   without date selection for data retrieve from db.
+    CLEAR lt_date_range.
+    CLEAR ls_time_span.
+    IF sy-dbsys <> /aif/if_globals=>gc_hdb_sys .
+     /aif/cl_aif_msg_statistic_pro=>reload_statistics(
+       EXPORTING
+         it_key_data   = gt_all_keys_0102
+         it_date_range = lt_date_range ).
+    ELSEIF sy-dbsys = /aif/if_globals=>gc_hdb_sys.
+      lr_msg_stat_hdb = /aif/cl_msg_stat_hdb=>get_instance( ).
+      lr_msg_stat_hdb->read_all_by_time(
+         it_key_data   = gt_all_keys_0102
+         is_time_span  = ls_time_span ).
+    ENDIF.
+  ELSE.
+    "handle it in buffer table.
+  ENDIF.
+*   build tree for all interface.
+  PERFORM f_build_tree USING gt_all_keys_0102 lt_recip_tech lt_roles[] CHANGING lt_tree_data.
+
+  IF 1 = 2. MESSAGE e136(/aif/error_handling). ENDIF. " dummy statement for SE91 usage
+  CALL FUNCTION 'PROGRESS_INDICATOR'
+    EXPORTING
+      i_msgid              = '/AIF/ERROR_HANDLING'
+      i_msgno              = '136'
+      i_output_immediately = 'X'.
+
+  PERFORM f_add_tree_nodes_new USING lt_recip_tech CHANGING lt_tree_data
+                                                      lv_tech_col_hidden .
+
+* hide the tech columns if no tech user assigned
+  IF lv_tech_col_hidden IS NOT INITIAL.
+    TRY.
+        lr_columns = gr_alv_tree_0100->get_columns( ).
+        lr_column = lr_columns->get_column( 'COUNT_A_TEXT' ).
+        lr_column->set_technical( abap_true ).
+        lr_column = lr_columns->get_column( 'COUNT_I_TEXT' ).
+        lr_column->set_technical( abap_true ).
+      CATCH cx_salv_not_found .                         "#EC NO_HANDLER
+    ENDTRY.
+  ELSE.
+    TRY.
+        lr_columns = gr_alv_tree_0100->get_columns( ).
+        lr_column = lr_columns->get_column( 'COUNT_A_TEXT' ).
+        lr_column->set_technical( abap_false ).
+        lr_column = lr_columns->get_column( 'COUNT_I_TEXT' ).
+        lr_column->set_technical( abap_false ).
+      CATCH cx_salv_not_found .                         "#EC NO_HANDLER
+    ENDTRY.
+  ENDIF.
+
+* set header to "last refresh on..."
+  PERFORM f_set_tree_header_last_refresh.
+  gr_alv_tree_0100->display( ).
+*  Reset calendar date color and number
+  IF NOT gr_calendar_0100 IS INITIAL AND gv_load_from_db = abap_true.
+    CALL METHOD gr_calendar_0100->reset_day_info.
+    PERFORM f_set_date_color.
+  ENDIF.
+  CLEAR gv_load_from_db.
+ENDFORM.                    " F_UPDATE_TREE_0100
+
+
+*&---------------------------------------------------------------------*
+*&      Form  F_ADD_NAMESPACE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      <--P_LV_NR  text
+*      -->P_<LS_NS>  text
+*      -->P_LT_TREE_DATA  text
+*----------------------------------------------------------------------*
+FORM f_add_namespace  USING    ps_ns TYPE /aif/t_ns
+                               ps_nst TYPE /aif/t_nst
+                               ps_key_data TYPE /aif/key_data
+                               pt_recip_tech TYPE tt_recip_tech
+                      CHANGING pv_nr TYPE i
+                               pt_tree_data TYPE /aif/tree_data_tt.
+
+* determine all interfaces of this namespace
+  DATA: lt_finf      TYPE TABLE OF /aif/t_finf,
+        lt_finft     TYPE /aif/tt_finft,
+        lv_nr_ns     TYPE i,
+        ls_tree_data TYPE /aif/tree_data,
+        lv_2nd_langu TYPE sylangu,
+        lv_fb_langu  TYPE sylangu.
+  FIELD-SYMBOLS: <ls_finf>  TYPE /aif/t_finf,
+                 <ls_finft> TYPE /aif/t_finft.
+* Data base access DBA
+  DATA: lr_dba_mgr   TYPE REF TO /aif/cl_dba_reader_mgr,
+        lr_dba_finf  TYPE REF TO /aif/if_dba_finf,
+        ls_finf_out  TYPE /aif/t_finf,
+        ls_finft_out TYPE /aif/t_finft.
+
+* select the data with the DBA
+* get instance of interface class
+  lr_dba_mgr = /aif/cl_dba_reader_mgr=>get_instance( ).
+  lr_dba_finf   = lr_dba_mgr->get_dba_finf( ).
+* set the fields for reading
+  ls_finf_out-ns = ps_ns-ns.
+* read the interface from the data base
+  TRY.
+      lt_finf = lr_dba_finf->read_table( ls_finf_out ).
+    CATCH /aif/cx_dba_reader. " do nothing
+  ENDTRY.
+
+  lv_2nd_langu = /aif/cl_lang_control=>return_2nd_lang( ).
+  lv_fb_langu = /aif/cl_lang_control=>return_fb_lang( ).
+
+* set the fields for reading
+  ls_finft_out-ns = ps_ns-ns.
+  ls_finft_out-spras = sy-langu.
+* read the interface from the data base
+  TRY.
+      lt_finft = lr_dba_finf->read_texts( ls_finft_out ).
+    CATCH /aif/cx_dba_reader. " do nothing
+  ENDTRY.
+  IF lt_finft IS INITIAL AND lv_2nd_langu IS NOT INITIAL.
+    ls_finft_out-spras = lv_2nd_langu.
+* read the interface from the data base
+    TRY.
+        lt_finft = lr_dba_finf->read_texts( ls_finft_out ).
+      CATCH /aif/cx_dba_reader. " do nothing
+    ENDTRY.
+  ENDIF.
+  IF lt_finft IS INITIAL AND lv_fb_langu IS NOT INITIAL.
+    ls_finft_out-spras = lv_fb_langu.
+* read the interface from the data base
+    TRY.
+        lt_finft = lr_dba_finf->read_texts( ls_finft_out ).
+      CATCH /aif/cx_dba_reader. " do nothing
+    ENDTRY.
+  ENDIF.
+  IF lt_finft IS INITIAL.
+    CLEAR ls_finft_out-spras.
+* read the interface from the data base
+    TRY.
+        lt_finft = lr_dba_finf->read_texts( ls_finft_out ).
+      CATCH /aif/cx_dba_reader. " do nothing
+    ENDTRY.
+  ENDIF.
+
+* add namespace only if there is at least one interface!
+  CHECK NOT lt_finf[] IS INITIAL.
+
+* add line for namespace
+  lv_nr_ns = pv_nr.
+  CLEAR: ls_tree_data.
+  ls_tree_data-nr = pv_nr.
+  ls_tree_data-parent = 0.
+  IF ps_nst-nstx IS INITIAL.
+    ls_tree_data-node_text = ps_ns-ns.
+  ELSE.
+    CONCATENATE  ps_nst-nstx '-' ps_ns-ns
+        INTO ls_tree_data-node_text
+        SEPARATED BY space.
+  ENDIF.
+  ls_tree_data-status_icon = '0'.
+  ls_tree_data-collapsed_icon = '@U8@'.
+  ls_tree_data-expanded_icon = '@U8@'.
+  ls_tree_data-ns = ps_ns-ns.
+  ls_tree_data-nsrecipient = ps_key_data-nsrecipient.
+  ls_tree_data-recipient = ps_key_data-recipient.
+  APPEND ls_tree_data TO pt_tree_data.
+  ADD 1 TO pv_nr.
+
+* add all interfaces below
+  LOOP AT lt_finf ASSIGNING <ls_finf>.
+    READ TABLE lt_finft ASSIGNING <ls_finft> WITH KEY
+          ns = <ls_finf>-ns
+          ifname = <ls_finf>-ifname
+          ifversion = <ls_finf>-ifversion.
+    PERFORM f_add_interface USING <ls_finf> <ls_finft> lv_nr_ns ps_key_data pt_recip_tech
+           CHANGING pv_nr pt_tree_data .
+  ENDLOOP.
+
+ENDFORM.                    " F_ADD_NAMESPACE
+*&---------------------------------------------------------------------*
+*&      Form  F_ADD_INTERFACE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_PT_TREE_DATA  text
+*      -->P_<LS_FINF>  text
+*      -->P_<LS_FINFT>  text
+*      <--P_PV_NR  text
+*----------------------------------------------------------------------*
+FORM  f_add_interface  USING   ps_finf       TYPE /aif/t_finf
+                               ps_finft      TYPE /aif/t_finft
+                               pv_nr_ns      TYPE i         "#EC NEEDED
+                               ps_key_data   TYPE /aif/key_data
+                               pt_recip_tech TYPE tt_recip_tech "#EC NEEDED
+                      CHANGING pv_nr         TYPE i
+                               pt_tree_data  TYPE /aif/tree_data_tt.
+
+* add line for namespace
+  DATA: ls_tree_data   TYPE /aif/tree_data,
+        ls_tree_ns     TYPE /aif/tree_data,
+        ls_ns          TYPE /aif/t_ns,
+        ls_nst         TYPE /aif/t_nst,
+        lv_tooltip(39) TYPE c,
+        lv_where       TYPE string,
+        lv_str_value   TYPE string,
+        lv_where_e     TYPE string,
+        lv_where_a     TYPE string,
+        lv_where_w     TYPE string,
+        lv_where_i     TYPE string,
+        lv_lfieldname  TYPE dfies-lfieldname,
+        lv_label       TYPE string,
+        lv_keyvalue    TYPE string,
+        lv_keyname     TYPE string,
+        lv_2nd_langu   TYPE sylangu,
+        lv_fb_langu    TYPE sylangu.
+
+* DBS Namespace
+  DATA: lr_dba_mgr TYPE REF TO /aif/cl_dba_reader_mgr,
+        lr_dba_ns  TYPE REF TO /aif/if_dba_ns,
+        ls_ns_out  TYPE /aif/t_ns,
+        ls_nst_out TYPE /aif/t_nst,
+        lt_nst     TYPE /aif/t_nst_tt.
+
+  FIELD-SYMBOLS: <ls_key_value> TYPE /aif/keyvalues.
+  CLEAR: ls_tree_data.
+  lv_2nd_langu = /aif/cl_lang_control=>return_2nd_lang( ).
+  lv_fb_langu = /aif/cl_lang_control=>return_fb_lang( ).
+*************************************************
+* determine status of the interface
+*************************************************
+
+
+* determine index table
+  DATA: ls_inf_tbl TYPE /aif/t_inf_tbl,
+        ls_msg_tbl TYPE /aif/msg_tbl.
+  SELECT SINGLE * INTO ls_inf_tbl
+    FROM /aif/t_inf_tbl
+    WHERE ns = ps_finf-ns
+    AND   ifname = ps_finf-ifname
+    AND   ifver = ps_finf-ifversion.
+  IF sy-subrc = 0 AND NOT ls_inf_tbl-msg_tbl IS INITIAL.
+    ls_msg_tbl = ls_inf_tbl-msg_tbl.
+  ELSE.
+    ls_msg_tbl = '/AIF/STD_IDX_TBL'.
+  ENDIF.
+
+* determine number of messages with status 'E', 'A', 'W', and 'I'
+  CONCATENATE 'NS = ''' ps_finf-ns ''' AND IFNAME = ''' ps_finf-ifname ''' AND IFVER = ''' ps_finf-ifversion '''' INTO lv_where.
+  LOOP AT ps_key_data-keyvalues ASSIGNING <ls_key_value>.
+    CHECK NOT <ls_key_value>-value IS INITIAL.
+    CONCATENATE '''' <ls_key_value>-value '''' INTO lv_str_value.
+    CONCATENATE lv_where 'AND' <ls_key_value>-fieldname '=' lv_str_value INTO lv_where SEPARATED BY space.
+  ENDLOOP.
+
+  IF NOT gv_select_dates_0100 IS INITIAL.
+    CONCATENATE lv_where ' AND CREATE_DATE GE ''' gv_date_begin_0100 ''' AND CREATE_DATE LE ''' gv_date_end_0100 '''' INTO lv_where.
+  ENDIF.
+  CONCATENATE lv_where ' AND STATUS = ''E''' INTO lv_where_e.
+  CONCATENATE lv_where ' AND STATUS = ''A''' INTO lv_where_a.
+  CONCATENATE lv_where ' AND STATUS = ''W''' INTO lv_where_w.
+  CONCATENATE lv_where ' AND STATUS = ''I''' INTO lv_where_i.
+
+* performance improvement: select only with specified status
+  DATA: lt_statistics TYPE /aif/intf_statistics_tt,
+        ls_statistics TYPE /aif/intf_statistics_st,
+        ls_date_range TYPE cvs_sodt.
+
+  IF NOT gv_select_dates_0100 IS INITIAL.
+    ls_date_range-sign = 'I'.
+    ls_date_range-option = 'BT'.
+    ls_date_range-low = gv_date_begin_0100.
+    ls_date_range-high = gv_date_end_0100.
+  ELSE.
+    CLEAR ls_date_range.
+  ENDIF.
+
+  lt_statistics = /aif/cl_aif_msg_statistic_pro=>return_statistics(
+      iv_ns         = ps_finf-ns
+      iv_ifname     = ps_finf-ifname
+      iv_ifversion  = ps_finf-ifversion
+      iv_nsrecip    = ps_key_data-nsrecipient
+      iv_recipient  = ps_key_data-recipient
+      is_techuser   = ps_key_data-is_techuser
+      is_date_range = ls_date_range ).
+  ASSERT lines( lt_statistics ) <= 1.
+  READ TABLE lt_statistics INTO ls_statistics INDEX 1.
+  IF sy-subrc IS INITIAL.
+    ls_tree_data-count_all = ls_statistics-count_all.
+    ls_tree_data-count_e   = ls_statistics-count_e.
+    ls_tree_data-count_w   = ls_statistics-count_w.
+    ls_tree_data-count_a   = ls_statistics-count_a.
+    ls_tree_data-count_i   = ls_statistics-count_i.
+    ls_tree_data-count_s   = ls_statistics-count_s.
+    ls_tree_data-count_c   = ls_statistics-count_c.
+  ENDIF.
+*************************************************
+* append line
+*************************************************
+  IF ps_finft-ifdesc IS INITIAL.
+    CONCATENATE  ps_finf-ifname ps_finf-ifversion
+     INTO ls_tree_data-node_text
+     SEPARATED BY '/'.
+  ELSE.
+    CONCATENATE ps_finf-ifname ps_finf-ifversion
+        INTO ls_tree_data-node_text
+        SEPARATED BY '/'.
+    CONCATENATE   ps_finft-ifdesc '-' ls_tree_data-node_text
+        INTO ls_tree_data-node_text
+        SEPARATED BY space.
+  ENDIF.
+  IF ls_tree_data-count_e > 0 OR ls_tree_data-count_a > 0.
+    ls_tree_data-status_icon = '1'.
+  ELSEIF ls_tree_data-count_w > 0.
+    ls_tree_data-status_icon = '2'.
+  ELSEIF ls_tree_data-count_all > 0.
+    ls_tree_data-status_icon = '3'.
+  ELSE.
+    ls_tree_data-status_icon = '0'.
+  ENDIF.
+  CONCATENATE TEXT-t01 ps_key_data-recipient INTO lv_tooltip.
+  CLEAR lv_keyvalue.
+
+  LOOP AT ps_key_data-keyvalues ASSIGNING <ls_key_value> WHERE value IS NOT INITIAL.
+    CLEAR lv_label.
+    lv_lfieldname = <ls_key_value>-alert_fieldname.
+    CALL FUNCTION 'DDIF_FIELDLABEL_GET'
+      EXPORTING
+        tabname        = ps_key_data-dbname
+        lfieldname     = lv_lfieldname
+        langu          = sy-langu
+      IMPORTING
+        label          = lv_label
+      EXCEPTIONS
+        not_found      = 1
+        internal_error = 2
+        OTHERS         = 3.
+    IF lv_label IS INITIAL AND lv_2nd_langu IS NOT INITIAL.
+      CALL FUNCTION 'DDIF_FIELDLABEL_GET'
+        EXPORTING
+          tabname        = ps_key_data-dbname
+          lfieldname     = lv_lfieldname
+          langu          = lv_2nd_langu
+        IMPORTING
+          label          = lv_label
+        EXCEPTIONS
+          not_found      = 1
+          internal_error = 2
+          OTHERS         = 3.
+    ENDIF.
+
+    IF lv_label IS INITIAL AND lv_fb_langu IS NOT INITIAL.
+      CALL FUNCTION 'DDIF_FIELDLABEL_GET'
+        EXPORTING
+          tabname        = ps_key_data-dbname
+          lfieldname     = lv_lfieldname
+          langu          = lv_fb_langu
+        IMPORTING
+          label          = lv_label
+        EXCEPTIONS
+          not_found      = 1
+          internal_error = 2
+          OTHERS         = 3.
+    ENDIF.
+
+    IF lv_keyname IS INITIAL.
+      lv_keyname = lv_label.
+    ELSE.
+      CONCATENATE lv_keyname '/' lv_label   INTO lv_keyname.
+    ENDIF.
+
+    IF lv_keyvalue IS INITIAL.
+      lv_keyvalue = <ls_key_value>-value.
+    ELSE.
+      CONCATENATE lv_keyvalue '/' <ls_key_value>-value INTO lv_keyvalue.
+    ENDIF.
+    CLEAR lv_label.
+  ENDLOOP.
+
+  ls_tree_data-keyfield_name = lv_keyname.
+  ls_tree_data-keyvalue_text = lv_keyvalue.
+* add tooltips for interfaces
+
+  CONCATENATE lv_tooltip lv_keyvalue INTO lv_tooltip SEPARATED BY ','.
+  CONCATENATE '@WQ\Q' lv_tooltip '@' INTO ls_tree_data-collapsed_icon.
+  CONCATENATE '@WQ\Q' lv_tooltip '@' INTO ls_tree_data-expanded_icon.
+
+  ls_tree_data-ns = ps_finf-ns.
+  ls_tree_data-ifname = ps_finf-ifname.
+  ls_tree_data-ifversion = ps_finf-ifversion.
+  ls_tree_data-keyvalues = ps_key_data-keyvalues.
+  ls_tree_data-is_techuser = ps_key_data-is_techuser.
+  ls_tree_data-nsrecipient = ps_key_data-nsrecipient.
+  ls_tree_data-recipient   =   ps_key_data-recipient.
+
+* Add grouped root node in case the interface keys are specified
+  CLEAR ls_tree_ns.
+  READ TABLE pt_tree_data INTO ls_tree_ns WITH KEY ns =  ps_finf-ns
+                                                   parent  = 0.
+  IF sy-subrc <> 0.
+* first add namespace node
+    CLEAR ls_nst.
+
+* read namespace and the appendant text
+    ls_ns_out-ns = ps_key_data-ns.
+    ls_nst_out-ns = ps_key_data-ns.
+    lr_dba_mgr = /aif/cl_dba_reader_mgr=>get_instance( ).
+    lr_dba_ns   = lr_dba_mgr->get_dba_ns( ).
+    TRY.
+        ls_ns = lr_dba_ns->read_single( ls_ns_out ).
+      CATCH /aif/cx_dba_reader. " do noting
+    ENDTRY.
+* read all textes from the text table
+    TRY.
+        ls_nst = lr_dba_ns->read_text_by_different_langu( ls_nst_out ).
+      CATCH /aif/cx_dba_reader. " do noting
+    ENDTRY.
+
+    ls_tree_ns-nr = pv_nr.
+    ls_tree_ns-parent = 0.
+    IF ls_nst-nstx IS INITIAL.
+      ls_tree_ns-node_text = ls_ns-ns.
+    ELSE.
+      CONCATENATE  ls_nst-nstx '-' ls_ns-ns
+          INTO ls_tree_ns-node_text
+          SEPARATED BY space.
+    ENDIF.
+    ls_tree_ns-status_icon = '0'.
+    ls_tree_ns-collapsed_icon = '@U8@'.
+    ls_tree_ns-expanded_icon = '@U8@'.
+    ls_tree_ns-ns = ls_ns-ns.
+    APPEND ls_tree_ns TO pt_tree_data.
+    ADD 1 TO pv_nr.
+  ENDIF.
+  ls_tree_data-nr = pv_nr.
+  ls_tree_data-parent = ls_tree_ns-nr.
+  APPEND ls_tree_data TO pt_tree_data.
+  ADD 1 TO pv_nr.
+ENDFORM.                    " F_ADD_INTERFACE
+*&---------------------------------------------------------------------*
+*&      Form  set_tree_header
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM f_set_tree_header_refreshing.
+  DATA: lv_head_text    TYPE salv_de_tree_text,
+        lr_tree_setting TYPE REF TO cl_salv_tree_settings.
+
+  lr_tree_setting = gr_alv_tree_0100->get_tree_settings( ).
+  lv_head_text = TEXT-004.
+  lr_tree_setting->set_hierarchy_header( lv_head_text ).
+ENDFORM.                    "set_tree_header
+
+*&---------------------------------------------------------------------*
+*&      Form  f_set_tree_header_last_refresh
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM f_set_tree_header_last_refresh.
+  DATA: lv_head_text    TYPE salv_de_tree_text,
+        lr_tree_setting TYPE REF TO cl_salv_tree_settings,
+        lv_date         TYPE char10,
+        lv_time         TYPE char10.
+
+  lr_tree_setting = gr_alv_tree_0100->get_tree_settings( ).
+  GET TIME.
+  WRITE sy-datum TO lv_date.
+  WRITE sy-uzeit TO lv_time.
+
+*include 'Interfaces; ' to text-002
+  CONCATENATE TEXT-002 lv_date TEXT-003 lv_time  INTO lv_head_text SEPARATED BY space.
+  lr_tree_setting->set_hierarchy_header( lv_head_text ).
+
+ENDFORM.                    "set_tree_header
+*&---------------------------------------------------------------------*
+*&      Form  f_set_tree_header
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->CR_FORM    text
+*----------------------------------------------------------------------*
+FORM f_set_tree_header CHANGING cr_form TYPE any.           "#EC CALLED
+  DATA: lv_date_disp(10) TYPE c,
+        lv_time_disp(8)  TYPE c,
+        lr_grid          TYPE REF TO cl_salv_form_layout_grid,
+        lr_label         TYPE REF TO cl_salv_form_label,
+        lv_head_text     TYPE char128,
+        lv_linez         TYPE i VALUE 0,
+        lv_columz        TYPE i VALUE 1.
+
+  CREATE OBJECT lr_grid.
+  CREATE OBJECT lr_label.
+* line 1
+  WRITE sy-datum TO lv_date_disp DD/MM/YYYY.
+  WRITE sy-uzeit TO lv_time_disp.
+  CONCATENATE TEXT-002 lv_date_disp TEXT-003 lv_time_disp  INTO lv_head_text SEPARATED BY space.
+  ADD 1 TO lv_linez.
+  lr_label = lr_grid->create_label(
+          row     = lv_linez
+          column  = lv_columz
+          text    = lv_head_text ).
+
+* header text
+  cr_form = lr_grid.
+ENDFORM.                    "f_set_tree_header
+*&---------------------------------------------------------------------*
+*&      Form  f_create_selection_criteria
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM f_create_selection_criteria.
+  DATA: lv_acc_mode TYPE boolean.
+  GET PARAMETER ID '/AIF/ACC_MODE' FIELD lv_acc_mode.
+  CALL METHOD gr_splitter_left->get_container
+    EXPORTING
+      row       = 2
+      column    = 1
+    RECEIVING
+      container = gr_medium.
+  CHECK gr_medium IS NOT INITIAL.
+
+  IF gv_first_display = abap_true.
+    SET HANDLER gr_handler->on_new_resources.
+    CREATE OBJECT gr_document.
+    IF lv_acc_mode = space.
+      PERFORM f_fill_document.
+    ELSE.
+      PERFORM f_fill_document_acc_mode.
+    ENDIF.
+
+* merge documents
+    CALL METHOD gr_document->merge_document.
+
+* display documents
+    CALL METHOD gr_document->display_document
+      EXPORTING
+        parent             = gr_medium
+      EXCEPTIONS
+        html_display_error = 1.
+  ENDIF.
+
+ENDFORM.                    "f_set_tree_header
+*&---------------------------------------------------------------------*
+*&      Form  fill_document
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM f_fill_document.
+  DATA:lv_formarea TYPE REF TO cl_dd_form_area,
+       lv_tooltip  TYPE string,
+       lv_value    TYPE sdydo_value,
+       lv_datum    TYPE sydatum,
+       lv_uzeit    TYPE syuzeit.
+
+  CALL METHOD gr_document->add_form
+    IMPORTING
+      formarea = lv_formarea.
+
+* Maximum number of results
+  CALL METHOD lv_formarea->line_with_layout
+    EXPORTING
+      start = 'X'.
+
+  CALL METHOD lv_formarea->add_text
+    EXPORTING
+      text = 'Maximum number of results'(200).
+
+  CALL METHOD lv_formarea->add_gap
+    EXPORTING
+      width = 3.
+
+  IF gv_max_0100 IS INITIAL.
+    lv_value = '1000'.
+    gv_max_0100 =  lv_value.
+  ELSE.
+    lv_value =  gv_max_0100.
+  ENDIF.
+  CONDENSE lv_value NO-GAPS.
+  lv_tooltip = TEXT-200.
+  CALL METHOD lv_formarea->add_input_element
+    EXPORTING
+      value         = lv_value
+      name          = 'INPUT_MAXERR'
+      size          = 6
+      maxlength     = 6
+      tooltip       = lv_tooltip
+      a11y_label    = lv_tooltip
+    IMPORTING
+      input_element = gv_input_maxerr.
+  SET HANDLER gr_handler->handle_input FOR gv_input_maxerr.
+
+  CALL METHOD lv_formarea->line_with_layout
+    EXPORTING
+      end = 'X'.
+
+* Display only errors / Display all messages
+  CALL METHOD lv_formarea->line_with_layout
+    EXPORTING
+      start = 'X'.
+
+  IF gv_only_errors_0100 = 'X'.
+    lv_tooltip = TEXT-215.
+  ELSE.
+    lv_tooltip = TEXT-216.
+  ENDIF.
+  CALL METHOD lv_formarea->add_button
+    EXPORTING
+      sap_icon = 'ICON_ACTIVE_INACTIVE'
+      tooltip  = lv_tooltip
+      name     = 'BT_DISPERR'
+*     label    = lv_tooltip
+    IMPORTING
+      button   = gv_bt_disperr.
+  SET HANDLER gr_handler->handle_disperr_buttons FOR gv_bt_disperr.
+
+  CALL METHOD lv_formarea->add_gap
+    EXPORTING
+      width = 3.
+
+  IF gv_only_errors_0100 = 'X'.
+    CALL METHOD lv_formarea->add_text
+      EXPORTING
+        text = 'Display only errors'(205).
+  ELSE.
+    CALL METHOD lv_formarea->add_text
+      EXPORTING
+        text = 'Display all messages'(206).
+  ENDIF.
+
+  CALL METHOD lv_formarea->line_with_layout
+    EXPORTING
+      end = 'X'.
+
+* With date restriction / Without date restriction
+  CALL METHOD lv_formarea->line_with_layout
+    EXPORTING
+      start = 'X'.
+
+  IF gv_select_dates_0100 = 'X'.
+    lv_tooltip = TEXT-217.
+  ELSE.
+    lv_tooltip = TEXT-218.
+  ENDIF.
+  CALL METHOD lv_formarea->add_button
+    EXPORTING
+      sap_icon = 'ICON_ACTIVE_INACTIVE'
+      tooltip  = lv_tooltip
+      name     = 'BT_SELECTDT'
+*     label    = lv_tooltip
+    IMPORTING
+      button   = gv_bt_selectdt.
+  SET HANDLER gr_handler->handle_selectdt_buttons FOR gv_bt_selectdt.
+
+  CALL METHOD lv_formarea->add_gap
+    EXPORTING
+      width = 3.
+
+  IF gv_select_dates_0100 = 'X'.
+    CALL METHOD lv_formarea->add_text
+      EXPORTING
+        text = 'With date restriction'(207).
+  ELSE.
+    CALL METHOD lv_formarea->add_text
+      EXPORTING
+        text = 'Without date restriction'(208).
+  ENDIF.
+
+  CALL METHOD lv_formarea->line_with_layout
+    EXPORTING
+      end = 'X'.
+
+* Time range
+  IF gv_select_dates_0100 = abap_true.
+    "From (Date/Time)
+    lv_formarea->new_line( ).
+    CALL METHOD lv_formarea->add_text
+      EXPORTING
+        text = 'From (Date/Time)'(230).
+
+    CALL METHOD lv_formarea->line_with_layout
+      EXPORTING
+        start = 'X'.
+
+    CALL METHOD lv_formarea->add_text
+      EXPORTING
+        text = 'Date:'(224).
+
+    CALL METHOD lv_formarea->add_gap
+      EXPORTING
+        width = 1.
+
+    IF gv_date_begin_0100 IS INITIAL.
+      lv_datum = sy-datum - 14.
+      WRITE lv_datum TO lv_value.
+      gv_date_begin_0100 = lv_datum.
+    ELSE.
+      WRITE gv_date_begin_0100 TO lv_value.
+    ENDIF.
+
+    CALL METHOD lv_formarea->add_input_element
+      EXPORTING
+        value         = lv_value
+        name          = 'INPUT_BEGINDT'
+        size          = 10
+        maxlength     = 10
+      IMPORTING
+        input_element = gv_input_begindt.
+    SET HANDLER gr_handler->handle_input FOR gv_input_begindt.
+
+    lv_tooltip = 'Select Begin Date'(203).
+    CALL METHOD lv_formarea->add_button
+      EXPORTING
+        sap_icon = 'ICON_DATE'
+        tooltip  = lv_tooltip
+        name     = 'BT_BEGINDT'
+      IMPORTING
+        button   = gv_bt_begindt.
+    SET HANDLER gr_handler->handle_begindt_buttons FOR gv_bt_begindt.
+
+    DATA(lv_dbsys) = /aif/if_globals=>gc_hdb_sys.
+    IF sy-dbsys = lv_dbsys.
+      CALL METHOD lv_formarea->add_gap
+        EXPORTING
+          width = 3.
+
+      CALL METHOD lv_formarea->add_text
+        EXPORTING
+          text = 'Time:'(225).
+
+      CALL METHOD lv_formarea->add_gap
+        EXPORTING
+          width = 1.
+
+      IF gv_time_begin_0100 IS INITIAL.
+        lv_uzeit = gc_initial_time.
+        WRITE lv_uzeit TO lv_value.
+        gv_time_begin_0100 = lv_uzeit.
+      ELSE.
+        WRITE gv_time_begin_0100 TO lv_value.
+      ENDIF.
+
+      CALL METHOD lv_formarea->add_input_element
+        EXPORTING
+          value         = lv_value
+          name          = 'INPUT_BEGINTM'
+          size          = 10
+          maxlength     = 10
+        IMPORTING
+          input_element = gv_input_begintm.
+      SET HANDLER gr_handler->handle_input FOR gv_input_begintm.
+
+      lv_tooltip = 'Select Start Time'.
+      CALL METHOD lv_formarea->add_button
+        EXPORTING
+          sap_icon = 'ICON_TIME'
+          tooltip  = lv_tooltip
+          name     = 'BT_BEGINTM'
+        IMPORTING
+          button   = gv_bt_begintm.
+      SET HANDLER gr_handler->handle_begintm_buttons FOR gv_bt_begintm.
+    ELSE.
+      gv_time_begin_0100 = gc_initial_time.
+    ENDIF.
+
+    CALL METHOD lv_formarea->line_with_layout
+      EXPORTING
+        end = 'X'.
+
+    "To (Date/Time)
+    lv_formarea->new_line( ).
+    CALL METHOD lv_formarea->add_text
+      EXPORTING
+        text = 'To (Date/Time)'(231).
+
+    CALL METHOD lv_formarea->line_with_layout
+      EXPORTING
+        start = 'X'.
+
+    CALL METHOD lv_formarea->add_text
+      EXPORTING
+        text = 'Date:'(224).
+
+    CALL METHOD lv_formarea->add_gap
+      EXPORTING
+        width = 1.
+
+    IF gv_date_end_0100 IS INITIAL.
+      lv_datum = sy-datum.
+      WRITE lv_datum TO lv_value.
+      gv_date_end_0100 = lv_datum.
+    ELSE.
+      WRITE gv_date_end_0100 TO lv_value.
+    ENDIF.
+
+    CALL METHOD lv_formarea->add_input_element
+      EXPORTING
+        value         = lv_value
+        name          = 'INPUT_ENDDT'
+        size          = 10
+        maxlength     = 10
+      IMPORTING
+        input_element = gv_input_enddt.
+    SET HANDLER gr_handler->handle_input FOR gv_input_enddt.
+
+    lv_tooltip = 'Select End Date'(204).
+    CALL METHOD lv_formarea->add_button
+      EXPORTING
+        sap_icon = 'ICON_DATE'
+        tooltip  = lv_tooltip
+        name     = 'BT_ENDDT'
+      IMPORTING
+        button   = gv_bt_enddt.
+    SET HANDLER gr_handler->handle_enddt_buttons FOR gv_bt_enddt.
+
+    IF sy-dbsys = lv_dbsys.
+      CALL METHOD lv_formarea->add_gap
+        EXPORTING
+          width = 3.
+
+      CALL METHOD lv_formarea->add_text
+        EXPORTING
+          text = 'Time:'(225).
+
+      CALL METHOD lv_formarea->add_gap
+        EXPORTING
+          width = 1.
+
+      IF gv_time_end_0100 IS INITIAL.
+        lv_uzeit = gc_max_time.
+        WRITE lv_uzeit TO lv_value.
+        gv_time_end_0100 = lv_uzeit.
+      ELSE.
+        WRITE gv_time_end_0100 TO lv_value.
+      ENDIF.
+
+      CALL METHOD lv_formarea->add_input_element
+        EXPORTING
+          value         = lv_value
+          name          = 'INPUT_ENDTM'
+          size          = 10
+          maxlength     = 10
+        IMPORTING
+          input_element = gv_input_endtm.
+      SET HANDLER gr_handler->handle_input FOR gv_input_endtm.
+
+      lv_tooltip = 'Select End Time'.
+      CALL METHOD lv_formarea->add_button
+        EXPORTING
+          sap_icon = 'ICON_TIME'
+          tooltip  = lv_tooltip
+          name     = 'BT_ENDTM'
+        IMPORTING
+          button   = gv_bt_endtm.
+      SET HANDLER gr_handler->handle_endtm_buttons FOR gv_bt_endtm.
+    ELSE.
+      gv_time_end_0100 = gc_max_time.
+    ENDIF.
+
+    CALL METHOD lv_formarea->line_with_layout
+      EXPORTING
+        end = 'X'.
+  ENDIF.
+
+ENDFORM.                    "fill_document
+
+
+*&---------------------------------------------------------------------*
+*&      Form  f_fill_document_acc_mode
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM f_fill_document_acc_mode.
+  DATA:lv_formarea TYPE REF TO cl_dd_form_area,
+       lv_tooltip  TYPE string,
+       lv_value    TYPE sdydo_value,
+       lv_text     TYPE sdydo_text_element,
+       lv_datum    TYPE sydatum,
+       lv_uzeit    TYPE syuzeit.
+  DATA lv_a11y_tooltip TYPE string.
+
+
+  DATA lr_disp_maxerr   TYPE REF TO cl_dd_input_element.
+
+  CALL METHOD gr_document->add_form
+    IMPORTING
+      formarea = lv_formarea.
+
+* Maximum number of results
+  CALL METHOD lv_formarea->line_with_layout
+    EXPORTING
+      start = 'X'.
+  lv_a11y_tooltip = 'Maximum number of results'(200).
+  CALL METHOD lv_formarea->add_text
+    EXPORTING
+      text         = 'Maximum number of results'(200)
+      a11y_tooltip = lv_a11y_tooltip.
+
+  CALL METHOD lv_formarea->add_gap
+    EXPORTING
+      width = 3.
+
+  IF gv_max_0100 IS INITIAL.
+    lv_value = '1000'.
+    gv_max_0100 =  lv_value.
+  ELSE.
+    lv_value =  gv_max_0100.
+  ENDIF.
+  CONDENSE lv_value NO-GAPS.
+  lv_tooltip = TEXT-200.
+  CALL METHOD lv_formarea->add_input_element
+    EXPORTING
+      value         = lv_value
+      name          = 'INPUT_MAXERR'
+      size          = 6
+      maxlength     = 6
+      tooltip       = lv_tooltip
+      a11y_label    = lv_tooltip
+    IMPORTING
+      input_element = gv_input_maxerr.
+  SET HANDLER gr_handler->handle_input FOR gv_input_maxerr.
+
+  CALL METHOD lv_formarea->line_with_layout
+    EXPORTING
+      end = 'X'.
+
+
+* Display only errors / Display all messages
+  CALL METHOD lv_formarea->line_with_layout
+    EXPORTING
+      start = 'X'.
+
+  lv_tooltip = TEXT-415.
+  CALL METHOD lv_formarea->add_button
+    EXPORTING
+      sap_icon = 'ICON_ACTIVE_INACTIVE'
+      tooltip  = lv_tooltip
+      name     = 'BT_DISPERR'
+      label    = lv_tooltip
+    IMPORTING
+      button   = gv_bt_disperr.
+  SET HANDLER gr_handler->handle_disperr_buttons FOR gv_bt_disperr.
+
+  CALL METHOD lv_formarea->line_with_layout
+    EXPORTING
+      end = 'X'.
+
+* With date restriction / Without date restriction
+  CALL METHOD lv_formarea->line_with_layout
+    EXPORTING
+      start = 'X'.
+
+  lv_tooltip = TEXT-417.
+  CALL METHOD lv_formarea->add_button
+    EXPORTING
+      sap_icon = 'ICON_ACTIVE_INACTIVE'
+      tooltip  = lv_tooltip
+      name     = 'BT_SELECTDT'
+      label    = lv_tooltip
+    IMPORTING
+      button   = gv_bt_selectdt.
+  SET HANDLER gr_handler->handle_selectdt_buttons FOR gv_bt_selectdt.
+
+  CALL METHOD lv_formarea->line_with_layout
+    EXPORTING
+      end = 'X'.
+
+* From (Date/Time)
+  IF gv_select_dates_0100 = abap_true.
+    lv_formarea->new_line( ).
+
+    lv_a11y_tooltip = 'From (Date/Time)'(230).
+    CALL METHOD lv_formarea->add_text
+      EXPORTING
+        text         = 'From (Date/Time)'(230)
+        a11y_tooltip = lv_a11y_tooltip.
+
+    CALL METHOD lv_formarea->line_with_layout
+      EXPORTING
+        start = 'X'.
+    lv_a11y_tooltip = 'Date From'.
+    CALL METHOD lv_formarea->add_text
+      EXPORTING
+        text         = 'Date:'(224)
+        a11y_tooltip = lv_a11y_tooltip.
+
+    CALL METHOD lv_formarea->add_gap
+      EXPORTING
+        width = 1.
+
+    IF gv_date_begin_0100 IS INITIAL.
+      lv_datum = sy-datum - 14.
+      WRITE lv_datum TO lv_value.
+      gv_date_begin_0100 = lv_datum.
+    ELSE.
+      WRITE gv_date_begin_0100 TO lv_value.
+    ENDIF.
+    lv_tooltip = TEXT-222.
+    CALL METHOD lv_formarea->add_input_element
+      EXPORTING
+        value         = lv_value
+        name          = 'INPUT_BEGINDT'
+        size          = 10
+        maxlength     = 10
+        tooltip       = lv_tooltip
+        a11y_label    = lv_tooltip
+      IMPORTING
+        input_element = gv_input_begindt.
+    SET HANDLER gr_handler->handle_input FOR gv_input_begindt.
+
+    lv_tooltip = 'Select Begin Date'(203).
+    CALL METHOD lv_formarea->add_button
+      EXPORTING
+        sap_icon = 'ICON_DATE'
+        tooltip  = lv_tooltip
+        name     = 'BT_BEGINDT'
+      IMPORTING
+        button   = gv_bt_begindt.
+    SET HANDLER gr_handler->handle_begindt_buttons FOR gv_bt_begindt.
+
+    DATA(lv_dbsys) = /aif/if_globals=>gc_hdb_sys.
+    IF sy-dbsys = lv_dbsys.
+      CALL METHOD lv_formarea->add_gap
+        EXPORTING
+          width = 3.
+      lv_a11y_tooltip = 'Time From'.
+      CALL METHOD lv_formarea->add_text
+        EXPORTING
+          text         = 'Time:'(225)
+          a11y_tooltip = lv_a11y_tooltip.
+
+      CALL METHOD lv_formarea->add_gap
+        EXPORTING
+          width = 1.
+
+      IF gv_time_begin_0100 IS INITIAL.
+        lv_uzeit = gc_initial_time.
+        WRITE lv_uzeit TO lv_value.
+        gv_time_begin_0100 = lv_uzeit.
+      ELSE.
+        WRITE gv_time_begin_0100 TO lv_value.
+      ENDIF.
+
+      lv_tooltip = 'Time range from'(228).
+      CALL METHOD lv_formarea->add_input_element
+        EXPORTING
+          value         = lv_value
+          name          = 'INPUT_BEGINTM'
+          size          = 10
+          maxlength     = 10
+          tooltip       = lv_tooltip
+          a11y_label    = lv_tooltip
+        IMPORTING
+          input_element = gv_input_begintm.
+      SET HANDLER gr_handler->handle_input FOR gv_input_begintm.
+
+      lv_tooltip = 'Select Start Time'(226).
+      CALL METHOD lv_formarea->add_button
+        EXPORTING
+          sap_icon = 'ICON_TIME'
+          tooltip  = lv_tooltip
+          name     = 'BT_BEGINTM'
+        IMPORTING
+          button   = gv_bt_begintm.
+      SET HANDLER gr_handler->handle_begintm_buttons FOR gv_bt_begintm.
+    ELSE.
+      gv_time_begin_0100 = gc_initial_time.
+    ENDIF.
+
+    CALL METHOD lv_formarea->line_with_layout
+      EXPORTING
+        end = 'X'.
+
+    "To (Date/Time)
+    lv_formarea->new_line( ).
+    lv_a11y_tooltip = 'To (Date/Time)'(231).
+    CALL METHOD lv_formarea->add_text
+      EXPORTING
+        text         = 'To (Date/Time)'(231)
+        a11y_tooltip = lv_a11y_tooltip.
+
+    CALL METHOD lv_formarea->line_with_layout
+      EXPORTING
+        start = 'X'.
+    lv_a11y_tooltip = 'Date To'.
+    CALL METHOD lv_formarea->add_text
+      EXPORTING
+        text         = 'Date:'(224)
+        a11y_tooltip = lv_a11y_tooltip.
+
+    CALL METHOD lv_formarea->add_gap
+      EXPORTING
+        width = 1.
+
+    IF gv_date_end_0100 IS INITIAL.
+      lv_datum = sy-datum.
+      WRITE lv_datum TO lv_value.
+      gv_date_end_0100 = lv_datum.
+    ELSE.
+      WRITE gv_date_end_0100 TO lv_value.
+    ENDIF.
+    lv_tooltip = TEXT-223.
+    CALL METHOD lv_formarea->add_input_element
+      EXPORTING
+        value         = lv_value
+        name          = 'INPUT_ENDDT'
+        size          = 10
+        maxlength     = 10
+        tooltip       = lv_tooltip
+        a11y_label    = lv_tooltip
+      IMPORTING
+        input_element = gv_input_enddt.
+    SET HANDLER gr_handler->handle_input FOR gv_input_enddt.
+
+    lv_tooltip = 'Select End Date'(204).
+    CALL METHOD lv_formarea->add_button
+      EXPORTING
+        sap_icon = 'ICON_DATE'
+        tooltip  = lv_tooltip
+        name     = 'BT_ENDDT'
+      IMPORTING
+        button   = gv_bt_enddt.
+    SET HANDLER gr_handler->handle_enddt_buttons FOR gv_bt_enddt.
+
+    IF sy-dbsys = lv_dbsys.
+      CALL METHOD lv_formarea->add_gap
+        EXPORTING
+          width = 3.
+      lv_a11y_tooltip = 'Time To'.
+      CALL METHOD lv_formarea->add_text
+        EXPORTING
+          text         = 'Time:'(225)
+          a11y_tooltip = lv_a11y_tooltip.
+
+      CALL METHOD lv_formarea->add_gap
+        EXPORTING
+          width = 1.
+
+      IF gv_time_end_0100 IS INITIAL.
+        lv_uzeit = gc_max_time.
+        WRITE lv_uzeit TO lv_value.
+        gv_time_end_0100 = lv_uzeit.
+      ELSE.
+        WRITE gv_time_end_0100 TO lv_value.
+      ENDIF.
+
+      lv_tooltip = 'Time range to'(229).
+      CALL METHOD lv_formarea->add_input_element
+        EXPORTING
+          value         = lv_value
+          name          = 'INPUT_ENDTM'
+          size          = 10
+          maxlength     = 10
+          tooltip       = lv_tooltip
+          a11y_label    = lv_tooltip
+        IMPORTING
+          input_element = gv_input_endtm.
+      SET HANDLER gr_handler->handle_input FOR gv_input_endtm.
+
+      lv_tooltip = 'Select End Time'(227).
+      CALL METHOD lv_formarea->add_button
+        EXPORTING
+          sap_icon = 'ICON_TIME'
+          tooltip  = lv_tooltip
+          name     = 'BT_ENDTM'
+        IMPORTING
+          button   = gv_bt_endtm.
+      SET HANDLER gr_handler->handle_endtm_buttons FOR gv_bt_endtm.
+    ELSE.
+      gv_time_end_0100 = gc_max_time.
+    ENDIF.
+
+    CALL METHOD lv_formarea->line_with_layout
+      EXPORTING
+        end = 'X'.
+  ENDIF.
+
+ENDFORM.                    "fill_document
+
+*&---------------------------------------------------------------------*
+*&      Form  compose_script
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->CV_FORMAREA  text
+*----------------------------------------------------------------------*
+FORM compose_script CHANGING cv_formarea TYPE REF TO cl_dd_form_area. "#EC CALLED
+  DATA: lt_htmltable TYPE sdydo_html_table,
+        ls_html      TYPE sdydo_html_line.
+  ls_html = '<p><script language="VBScript"><!--'.          "#EC NOTEXT
+  APPEND ls_html TO lt_htmltable.
+
+  ls_html = 'sub CB_DispErr'.                               "#EC NOTEXT
+  APPEND ls_html TO lt_htmltable.
+
+  ls_html = 'navigate("SAPEVENT:CHECKBOXERR?DISPERR")'.     "#EC NOTEXT
+  APPEND ls_html TO lt_htmltable.
+
+  ls_html = 'end sub'.                                      "#EC NOTEXT
+  APPEND ls_html TO lt_htmltable.
+
+  ls_html = 'sub CB_SelectDt'.                              "#EC NOTEXT
+  APPEND ls_html TO lt_htmltable.
+
+  ls_html = 'navigate("SAPEVENT:CHECKBOXDT?SELECTDT")'.     "#EC NOTEXT
+  APPEND ls_html TO lt_htmltable.
+
+  ls_html = 'end sub'.                                      "#EC NOTEXT
+  APPEND ls_html TO lt_htmltable.
+
+  ls_html = '  --></script></p>'.                           "#EC NOTEXT
+  APPEND ls_html TO lt_htmltable.
+
+
+  CALL METHOD cv_formarea->add_static_html
+    EXPORTING
+      table_with_html = lt_htmltable.
+
+ENDFORM.                    "compose_script
+*&---------------------------------------------------------------------*
+*&      Form  f_get_init_layout
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM f_get_init_layout CHANGING cs_im_layout TYPE /aif/im_layout.
+  CLEAR cs_im_layout.
+  SELECT SINGLE *
+    FROM /aif/im_layout
+    INTO cs_im_layout
+    WHERE uname = sy-uname
+      AND is_bottom_hidden = 'X'.
+  IF sy-subrc <> 0.
+    cs_im_layout-uname = sy-uname.
+    cs_im_layout-is_bottom_hidden = 'X'.
+    cs_im_layout-height_upper = 60.
+    cs_im_layout-height_lower = 40.
+    cs_im_layout-width_left = 30.
+    cs_im_layout-width_right = 80.
+    cs_im_layout-height_top = 10.
+    cs_im_layout-height_medium = 10.
+    cs_im_layout-height_bottom = 10.
+    cs_im_layout-max_num = 1000."Note 2724928
+  ENDIF.
+
+  gv_max_0100 = cs_im_layout-max_num."Note 2724928
+ENDFORM.                    "f_get_init_layout
+*&---------------------------------------------------------------------*
+*&      Form  f_get_current_layout
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM f_get_current_layout CHANGING cs_im_layout TYPE /aif/im_layout.
+  CLEAR cs_im_layout.
+  cs_im_layout-uname = sy-uname.
+  cs_im_layout-is_bottom_hidden = 'X'.
+  gr_main_splitter->get_row_height( EXPORTING id = 1 IMPORTING result = cs_im_layout-height_upper ).
+  gr_main_splitter->get_row_height( EXPORTING id = 2 IMPORTING result = cs_im_layout-height_lower ).
+  gr_splitter_upper->get_column_width( EXPORTING id = 1 IMPORTING result = cs_im_layout-width_left ).
+  gr_splitter_upper->get_column_width( EXPORTING id = 2 IMPORTING result = cs_im_layout-width_right ).
+  gr_splitter_left->get_row_height( EXPORTING id = 1 IMPORTING result = cs_im_layout-height_top ).
+  gr_splitter_left->get_row_height( EXPORTING id = 2 IMPORTING result = cs_im_layout-height_medium ).
+  gr_splitter_left->get_row_height( EXPORTING id = 3 IMPORTING result = cs_im_layout-height_bottom ).
+  cl_gui_cfw=>flush( ).
+ENDFORM.                    "f_get_current_layout
+*&---------------------------------------------------------------------*
+*&      Form  f_adjust_splitter_size
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM f_adjust_splitter_size USING iv_firsttime TYPE char01. "Note 2724928
+
+  DATA:
+    lv_height_medium TYPE i,
+    lv_height_bottom TYPE i,
+    lv_value         TYPE string,
+    ls_im_layout     TYPE /aif/im_layout.
+
+  IF iv_firsttime IS NOT INITIAL."Note 2724928
+* this is the first time of adjustment
+    ls_im_layout = gs_im_layout_buf."Note 2724928
+  ELSE.
+* this is not the first time of adjustment
+    PERFORM f_get_current_layout CHANGING ls_im_layout.
+  ENDIF.
+
+  IF gv_select_dates_0100 IS NOT INITIAL.
+    IF ls_im_layout-height_bottom = 0.
+      IF gs_im_layout_buf-height_bottom = 0.
+        lv_height_bottom = 10.
+        lv_height_medium = ls_im_layout-height_medium - 10.
+        IF lv_height_medium < 0.
+          lv_height_medium = 10.
+        ENDIF.
+      ELSE.
+        lv_height_bottom = gs_im_layout_buf-height_bottom.
+        lv_height_medium = gs_im_layout_buf-height_medium.
+      ENDIF.
+    ELSE.
+      lv_height_bottom = ls_im_layout-height_bottom.
+      lv_height_medium = ls_im_layout-height_medium.
+    ENDIF.
+  ELSE.
+    lv_height_medium = ls_im_layout-height_medium + ls_im_layout-height_bottom.
+    lv_height_bottom = 0.
+  ENDIF.
+
+  gr_main_splitter->set_row_height( id = 1 height = ls_im_layout-height_upper ).
+  gr_main_splitter->set_row_height( id = 2 height = ls_im_layout-height_lower ).
+  gr_splitter_upper->set_column_width( id = 1 width = ls_im_layout-width_left ).
+  gr_splitter_upper->set_column_width( id = 2 width = ls_im_layout-width_right ).
+  gr_splitter_left->set_row_height( id = 1 height = ls_im_layout-height_top ).
+  gr_splitter_left->set_row_height( id = 2 height =  lv_height_medium ).
+  gr_splitter_left->set_row_height( id = 3 height =  lv_height_bottom ).
+
+
+* merge documents
+  CALL METHOD gr_document->merge_document.
+* display documents
+  CALL METHOD gr_document->display_document
+    EXPORTING
+      reuse_control      = 'X'
+      reuse_registration = 'X'.
+
+ENDFORM.                    "f_adjust_splitter_size
+*&---------------------------------------------------------------------*
+*&      Form  f_save_layout
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM f_save_layout.
+
+  DATA: ls_im_layout TYPE /aif/im_layout.
+
+  PERFORM f_get_current_layout CHANGING ls_im_layout.
+  ls_im_layout-max_num = gv_max_0100."Note 2724928
+  CALL FUNCTION 'ENQUEUE_/AIF/E_LAYOUT_IM'
+    EXPORTING
+      uname            = sy-uname
+      is_bottom_hidden = 'X'
+    EXCEPTIONS
+      foreign_lock     = 1
+      system_failure   = 2
+      OTHERS           = 3.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ELSE.
+    MODIFY /aif/im_layout FROM ls_im_layout.
+    MESSAGE s000(/aif/mes) WITH 'Save layout successfully'(210).
+    CALL FUNCTION 'DB_COMMIT'.
+    gs_im_layout_buf = ls_im_layout.
+  ENDIF.
+
+ENDFORM.                    "f_save_layout
+*&---------------------------------------------------------------------*
+*&      Form  F_GET_ALL_KEYS_PER_RECIPIENT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      <--P_GT_ALL_KEYS_0100  text
+*      <--P_LT_ALL_KEYS_0101  text
+*----------------------------------------------------------------------*
+FORM f_get_all_keys_per_recipient   USING    pt_all_keys_0100 TYPE tt_all_keys_0100
+                                    CHANGING ct_all_keys_0101 TYPE tt_all_keys_0101.
+  DATA: ls_all_keys_0101 TYPE /aif/key_data_st,
+        lt_all_keys_0100 TYPE tt_all_keys_0100,
+        lt_ns            TYPE TABLE OF /aif/t_ns,
+        lt_finf          TYPE TABLE OF /aif/t_finf,
+        lv_keyname       TYPE string,
+        lv_keyvalue      TYPE string,
+        lv_label         TYPE string,
+        lv_lfieldname    TYPE dfies-lfieldname,
+        lv_2nd_langu     TYPE sylangu,
+        lv_fb_langu      TYPE sylangu..
+  FIELD-SYMBOLS: <ls_finf>      TYPE /aif/t_finf,
+                 <ls_key_value> TYPE /aif/keyvalues,
+                 <ls_key_data>  TYPE /aif/key_data.
+
+  DATA lv_selset        TYPE /aif/seloptname.
+  DATA lr_job_mgr       TYPE REF TO /aif/cl_moni_job_manager.
+  DATA lref_exception   TYPE REF TO /aif/cx_error_handling_general.
+  DATA lv_lines         TYPE i.
+  DATA lt_job_logs      TYPE /aif/tbtc5_tt.
+  DATA lv_progress      TYPE sytabix.
+  FIELD-SYMBOLS <ls_job_log>   TYPE tbtc5.
+* DBS Namespace
+  DATA:
+    lr_dba_mgr     TYPE REF TO /aif/cl_dba_reader_mgr,
+    lr_dba_ns_finf TYPE REF TO /aif/if_dba_ns_finf,
+    lr_dba_finf    TYPE REF TO /aif/if_dba_finf,
+    ls_finf_out    TYPE /aif/t_finf.
+
+  lv_2nd_langu   = /aif/cl_lang_control=>return_2nd_lang( ).
+  lv_fb_langu = /aif/cl_lang_control=>return_fb_lang( ).
+
+
+  lt_all_keys_0100 = pt_all_keys_0100.
+  SORT lt_all_keys_0100 BY ns ifname ifversion AS TEXT.
+
+  CLEAR gt_selsets.
+  CLEAR gt_selsets_popup.
+
+  /aif/cl_moni_job_manager=>clear_popup_opened_once( ).
+  LOOP AT lt_all_keys_0100 ASSIGNING <ls_key_data>.
+
+    CLEAR: lv_keyname,
+           lv_keyvalue,
+           lv_label,
+           ls_finf_out.
+    LOOP AT <ls_key_data>-keyvalues ASSIGNING <ls_key_value>. "#EC CI_NESTED
+      CLEAR lv_label.
+      lv_lfieldname = <ls_key_value>-alert_fieldname.
+      CALL FUNCTION 'DDIF_FIELDLABEL_GET'
+        EXPORTING
+          tabname        = <ls_key_data>-dbname
+          lfieldname     = lv_lfieldname
+          langu          = sy-langu
+        IMPORTING
+          label          = lv_label
+        EXCEPTIONS
+          not_found      = 1
+          internal_error = 2
+          OTHERS         = 3.
+      IF lv_label IS INITIAL AND lv_2nd_langu IS NOT INITIAL.
+        CALL FUNCTION 'DDIF_FIELDLABEL_GET'
+          EXPORTING
+            tabname        = <ls_key_data>-dbname
+            lfieldname     = lv_lfieldname
+            langu          = lv_2nd_langu
+          IMPORTING
+            label          = lv_label
+          EXCEPTIONS
+            not_found      = 1
+            internal_error = 2
+            OTHERS         = 3.
+      ENDIF.
+      IF lv_label IS INITIAL AND lv_fb_langu IS NOT INITIAL.
+        CALL FUNCTION 'DDIF_FIELDLABEL_GET'
+          EXPORTING
+            tabname        = <ls_key_data>-dbname
+            lfieldname     = lv_lfieldname
+            langu          = lv_fb_langu
+          IMPORTING
+            label          = lv_label
+          EXCEPTIONS
+            not_found      = 1
+            internal_error = 2
+            OTHERS         = 3.
+      ENDIF.
+      IF lv_keyname IS INITIAL.
+        lv_keyname = lv_label.
+      ELSE.
+        CONCATENATE lv_keyname '/' lv_label   INTO lv_keyname.
+      ENDIF.
+
+      IF <ls_key_value>-value IS NOT INITIAL.
+        IF lv_keyvalue IS INITIAL.
+          lv_keyvalue = <ls_key_value>-value.
+        ELSE.
+          CONCATENATE lv_keyvalue '/' <ls_key_value>-value INTO lv_keyvalue.
+        ENDIF.
+      ELSE.
+        IF lv_keyvalue IS INITIAL.
+          lv_keyvalue = '*'.
+        ELSE.
+          CONCATENATE lv_keyvalue '/*' INTO lv_keyvalue.
+        ENDIF.
+      ENDIF.
+    ENDLOOP.
+
+* get instance of DBA classes
+    lr_dba_mgr = /aif/cl_dba_reader_mgr=>get_instance( ).
+    lr_dba_ns_finf   = lr_dba_mgr->get_dba_ns_finf( ).
+    lr_dba_finf   = lr_dba_mgr->get_dba_finf( ).
+
+    IF <ls_key_data>-ns IS INITIAL.
+* no namespace selected, so insert all namespaces with all interfaces
+
+      TRY.
+          lt_finf = lr_dba_ns_finf->read_tables_complete_deli_finf( ).
+        CATCH /aif/cx_dba_reader.    " do noting
+      ENDTRY.
+
+* add all interfaces into ct_all_keys_0100
+      LOOP AT lt_finf ASSIGNING <ls_finf>.               "#EC CI_NESTED
+        ls_all_keys_0101-ns              =   <ls_finf>-ns         .
+        ls_all_keys_0101-ifname          =   <ls_finf>-ifname     .
+        ls_all_keys_0101-ifversion       =   <ls_finf>-ifversion  .
+*          ls_all_keys_0101-data            =   ls_all_keys_0101-data       .
+        ls_all_keys_0101-dbname          =   <ls_key_data>-dbname     .
+*          ls_all_keys_0101-keyvalues       =   ls_all_keys_0101-keyvalues  .
+        ls_all_keys_0101-is_techuser     =   <ls_key_data>-is_techuser.
+        ls_all_keys_0101-nsrecipient     =   <ls_key_data>-nsrecipient.
+        ls_all_keys_0101-recipient       =   <ls_key_data>-recipient  .
+        ls_all_keys_0101-keyfield_name   =   lv_keyname  .
+        ls_all_keys_0101-keyvalue_text   =   lv_keyvalue  .
+        APPEND ls_all_keys_0101 TO ct_all_keys_0101.
+        PERFORM trigger_idx_data_loader USING <ls_finf>.
+      ENDLOOP.
+
+    ELSEIF <ls_key_data>-ifname IS INITIAL.
+* only namespace is selected, so add namespace with all interfaces below
+* set the fields for reading
+      ls_finf_out-ns = <ls_key_data>-ns.
+* read the interface from the data base
+      TRY.
+          lt_finf = lr_dba_finf->read_table( ls_finf_out ).
+        CATCH /aif/cx_dba_reader. "do nothing
+      ENDTRY.
+
+* add all interfaces into ct_all_keys_0100
+      LOOP AT lt_finf ASSIGNING <ls_finf>.               "#EC CI_NESTED
+        ls_all_keys_0101-ns              =   <ls_finf>-ns         .
+        ls_all_keys_0101-ifname          =   <ls_finf>-ifname     .
+        ls_all_keys_0101-ifversion       =   <ls_finf>-ifversion  .
+        ls_all_keys_0101-dbname          =   <ls_key_data>-dbname     .
+        ls_all_keys_0101-is_techuser     =   <ls_key_data>-is_techuser.
+        ls_all_keys_0101-nsrecipient     =   <ls_key_data>-nsrecipient.
+        ls_all_keys_0101-recipient       =   <ls_key_data>-recipient  .
+        ls_all_keys_0101-keyfield_name   =   lv_keyname  .
+        ls_all_keys_0101-keyvalue_text   =   lv_keyvalue  .
+        APPEND ls_all_keys_0101 TO ct_all_keys_0101.
+        PERFORM trigger_idx_data_loader USING <ls_finf>.
+      ENDLOOP.
+    ELSEIF <ls_key_data>-ifversion IS INITIAL.
+* no version is selected, so select all versions
+* set the fields for reading
+      ls_finf_out-ns = <ls_key_data>-ns.
+      ls_finf_out-ifname = <ls_key_data>-ifname.
+* read the interface from the data base
+      TRY.
+          lt_finf = lr_dba_finf->read_table( ls_finf_out ).
+        CATCH /aif/cx_dba_reader. "do nothing
+      ENDTRY.
+
+      LOOP AT lt_finf ASSIGNING <ls_finf>.               "#EC CI_NESTED
+        ls_all_keys_0101-ns              =   <ls_finf>-ns         .
+        ls_all_keys_0101-ifname          =   <ls_finf>-ifname     .
+        ls_all_keys_0101-ifversion       =   <ls_finf>-ifversion  .
+        ls_all_keys_0101-dbname          =   <ls_key_data>-dbname     .
+        ls_all_keys_0101-is_techuser     =   <ls_key_data>-is_techuser.
+        ls_all_keys_0101-nsrecipient     =   <ls_key_data>-nsrecipient.
+        ls_all_keys_0101-recipient       =   <ls_key_data>-recipient  .
+        ls_all_keys_0101-keyfield_name   =   lv_keyname  .
+        ls_all_keys_0101-keyvalue_text   =   lv_keyvalue  .
+        APPEND ls_all_keys_0101 TO ct_all_keys_0101.
+        PERFORM trigger_idx_data_loader USING <ls_finf>.
+      ENDLOOP.
+    ELSE.
+* all interface keys are selected, so add only this interface
+      ls_all_keys_0101-ns              =   <ls_key_data>-ns         .
+      ls_all_keys_0101-ifname          =   <ls_key_data>-ifname     .
+      ls_all_keys_0101-ifversion       =   <ls_key_data>-ifversion  .
+      ls_all_keys_0101-dbname          =   <ls_key_data>-dbname     .
+      ls_all_keys_0101-is_techuser     =   <ls_key_data>-is_techuser.
+      ls_all_keys_0101-nsrecipient     =   <ls_key_data>-nsrecipient.
+      ls_all_keys_0101-recipient       =   <ls_key_data>-recipient  .
+      ls_all_keys_0101-keyfield_name   =   lv_keyname  .
+      ls_all_keys_0101-keyvalue_text   =   lv_keyvalue  .
+      APPEND ls_all_keys_0101 TO ct_all_keys_0101.
+
+* set the fields for reading
+      ls_finf_out-ns = <ls_key_data>-ns.
+      ls_finf_out-ifname = <ls_key_data>-ifname.
+      ls_finf_out-ifversion = <ls_key_data>-ifversion.
+* read the interface from the data base
+      TRY.
+          lt_finf = lr_dba_finf->read_table( ls_finf_out ).
+        CATCH /aif/cx_dba_reader. "do nothing
+      ENDTRY.
+
+      LOOP AT lt_finf ASSIGNING <ls_finf>.               "#EC CI_NESTED
+        PERFORM trigger_idx_data_loader USING <ls_finf>.
+      ENDLOOP.
+
+    ENDIF.
+  ENDLOOP.
+
+
+  lv_lines = lines( gt_selsets_popup ).
+  LOOP AT gt_selsets_popup INTO lv_selset.
+    lr_job_mgr = /aif/cl_moni_job_manager=>get_job_manager(
+                      iv_report_name = /aif/if_globals=>gc_moni_job_rpt_name-std_tj
+                      iv_selset      = lv_selset ).
+    CHECK lr_job_mgr IS BOUND.
+    lr_job_mgr->popup_for_confirmation(
+      iv_popup_is_needed = abap_true
+      iv_job_no          = lv_lines ).
+
+* check every registered job for the application engine
+    lr_job_mgr->trigger_jobs( ).
+* after check, job log may be detected
+    lt_job_logs = lr_job_mgr->return_job_logs( ).
+* inject log messages into the local log handle, EH will display later
+    LOOP AT lt_job_logs ASSIGNING <ls_job_log>.
+      DO 50 TIMES.
+        lv_progress = lv_progress + 2.
+        CALL FUNCTION 'PROGRESS_INDICATOR'
+          EXPORTING
+*           I_TEXT               =
+            i_msgid              = <ls_job_log>-msgid
+            i_msgno              = <ls_job_log>-msgno
+            i_msgv1              = <ls_job_log>-msgv1
+            i_msgv2              = <ls_job_log>-msgv2
+            i_msgv3              = <ls_job_log>-msgv3
+            i_msgv4              = <ls_job_log>-msgv4
+            i_processed          = lv_progress
+            i_total              = 100
+            i_output_immediately = 'X'
+*     IMPORTING
+*           E_PROGRESS_SENT      =
+          .
+      ENDDO.
+    ENDLOOP.
+  ENDLOOP.
+
+  /aif/cl_moni_job_manager=>clear_popup_opened_once( ).
+
+ENDFORM.                    " F_GET_ALL_KEYS_PER_RECIPIENT
+*&---------------------------------------------------------------------*
+*&      Form  F_COMBINE_KEYVALUE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->PT_ALL_KEYS_0101  text
+*      <--PT_ALL_KEYS_0102  text
+*----------------------------------------------------------------------*
+FORM f_combine_keyvalues  USING    pt_all_keys_0101 TYPE tt_all_keys_0101
+                         CHANGING  ct_all_keys_0102 TYPE /aif/key_data_tt.
+  DATA: ls_all_keys_0101 TYPE /aif/key_data_st,
+        ls_all_keys_0102 TYPE /aif/key_data_st,
+        lt_all_keys_0101 TYPE tt_all_keys_0101,
+        lv_keyname       TYPE string,
+        lv_keyvalue      TYPE string.
+
+  FIELD-SYMBOLS <ls_key_tbl>       TYPE /aif/ifkeys_map_idx_tbl_st.
+
+*   delete ADJACENT DUPLICATES.
+  lt_all_keys_0101 = pt_all_keys_0101.
+  SORT lt_all_keys_0101 BY ns ifname ifversion nsrecipient recipient keyfield_name AS TEXT .
+  DELETE ADJACENT DUPLICATES FROM lt_all_keys_0101.
+  CLEAR: lv_keyname,
+         lv_keyvalue.
+  LOOP AT lt_all_keys_0101 INTO ls_all_keys_0101.
+
+    MOVE-CORRESPONDING ls_all_keys_0101 TO ls_all_keys_0102.
+    AT NEW recipient.
+      CLEAR: lv_keyname,
+             lv_keyvalue.
+
+    ENDAT.
+    IF ls_all_keys_0102-keyfield_name IS NOT INITIAL.
+
+      IF lv_keyname IS INITIAL.
+        lv_keyname = ls_all_keys_0102-keyfield_name.
+      ENDIF.
+
+    ENDIF.
+
+    IF ls_all_keys_0101-keyvalue_text IS NOT INITIAL.
+      IF lv_keyvalue IS INITIAL.
+        lv_keyvalue = ls_all_keys_0101-keyvalue_text.
+      ELSE.
+        CONCATENATE lv_keyvalue ',' ls_all_keys_0101-keyvalue_text INTO lv_keyvalue.
+      ENDIF.
+    ENDIF.
+
+    AT END OF recipient.
+      ls_all_keys_0102-keyfield_name = lv_keyname.
+      ls_all_keys_0102-keyvalue_text = lv_keyvalue.
+      INSERT ls_all_keys_0102 INTO  TABLE ct_all_keys_0102.
+    ENDAT.
+  ENDLOOP.
+
+ENDFORM.                    " F_COMBINE_KEYVALUE
+*&---------------------------------------------------------------------*
+*&      Form  F_BUILD_TREE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->PT_ALL_KEYS_0102  text
+*      -->PT_TREE_DATA  text
+*----------------------------------------------------------------------*
+FORM f_build_tree  USING    pt_all_keys_0102 TYPE /aif/key_data_tt
+                            pt_recip_tech    TYPE tt_recip_tech "#EC NEEDED
+                            pt_roles TYPE smum_agr_users
+                   CHANGING ct_tree_data     TYPE /aif/tree_data_tt.
+
+  DATA: ls_tree_data   TYPE /aif/tree_data,
+        ls_all_keys    TYPE /aif/key_data_st,
+        ls_aifkey      TYPE /aif/key_data_st,
+        ls_aifkey_bk   TYPE /aif/key_data_st,
+        ls_nst         TYPE /aif/t_nst,
+        ls_finft       TYPE /aif/t_finft,
+        lv_tooltip(39) TYPE c,
+        lv_nr          TYPE i,
+        lv_nr_2nd      TYPE i,
+        lv_nr_3rd      TYPE i,
+        lv_flag_once   TYPE boolean,
+        lv_nodetext    TYPE string,
+        lt_alrt_usrnot TYPE TABLE OF /aif/alrt_usrnot.
+
+* DBS declaration
+  DATA: lr_dba_mgr   TYPE REF TO /aif/cl_dba_reader_mgr,
+        lr_dba_ns    TYPE REF TO /aif/if_dba_ns,
+        ls_nst_out   TYPE /aif/t_nst,
+        lt_nst       TYPE /aif/t_nst_tt,
+        lr_dba_finf  TYPE REF TO /aif/if_dba_finf,
+        ls_finft_out TYPE /aif/t_finft,
+        lt_finft     TYPE /aif/tt_finft.
+
+  CLEAR: ls_tree_data,
+         lv_nr,
+         lv_nr_2nd,
+         lv_nr_3rd.
+
+* get all settings for user mail notification
+  SELECT * INTO TABLE lt_alrt_usrnot
+    FROM /aif/alrt_usrnot
+    WHERE username = sy-uname OR username = ''.
+
+* get DBS-Objects
+  lr_dba_mgr = /aif/cl_dba_reader_mgr=>get_instance( ).
+  lr_dba_ns   = lr_dba_mgr->get_dba_ns( ).
+  lr_dba_finf = lr_dba_mgr->get_dba_finf( ).
+
+* determine status of the interface
+  LOOP AT pt_all_keys_0102 INTO ls_all_keys.
+
+* get a tree node data.
+*   get interface description.
+    CLEAR: lv_nodetext,
+           lv_tooltip,
+           ls_finft.
+
+* set the fields for reading
+    ls_finft_out-ns = ls_all_keys-ns.
+    ls_finft_out-ifname = ls_all_keys-ifname.
+    ls_finft_out-ifversion = ls_all_keys-ifversion.
+
+* read the interface from the data base
+    TRY.
+        ls_finft = lr_dba_finf->read_text_by_different_langu( ls_finft_out ).
+      CATCH /aif/cx_dba_reader. " do noting
+    ENDTRY.
+
+    IF ls_finft-ifdesc IS INITIAL.
+      CONCATENATE  ls_all_keys-ifname ls_all_keys-ifversion
+       INTO lv_nodetext
+       SEPARATED BY '/'.
+    ELSE.
+      CONCATENATE ls_all_keys-ifname ls_all_keys-ifversion
+          INTO lv_nodetext
+          SEPARATED BY '/'.
+      CONCATENATE   ls_finft-ifdesc '-' lv_nodetext
+          INTO lv_nodetext
+          SEPARATED BY space.
+    ENDIF.
+    ls_tree_data-node_text = lv_nodetext.
+
+* add tooltips for interfaces
+    CONCATENATE ls_all_keys-nsrecipient  '/' ls_all_keys-recipient INTO lv_tooltip.
+    IF NOT ls_all_keys-keyvalue_text IS INITIAL.
+      CONCATENATE lv_tooltip ls_all_keys-keyvalue_text INTO lv_tooltip SEPARATED BY ':'.
+    ENDIF.
+    CONCATENATE '@WQ\Q' lv_tooltip '@' INTO ls_tree_data-collapsed_icon.
+    CONCATENATE '@WQ\Q' lv_tooltip '@' INTO ls_tree_data-expanded_icon.
+    ls_tree_data-ns          = ls_all_keys-ns.
+    ls_tree_data-ifname      = ls_all_keys-ifname.
+    ls_tree_data-ifversion   = ls_all_keys-ifversion.
+    ls_tree_data-keyfield_name = ls_all_keys-keyfield_name.
+    ls_tree_data-keyvalue_text = ls_all_keys-keyvalue_text.
+    ls_tree_data-keyvalues   = ls_all_keys-keyvalues.
+    ls_tree_data-is_techuser = ls_all_keys-is_techuser.
+    ls_tree_data-nsrecipient = ls_all_keys-nsrecipient.
+    ls_tree_data-recipient   = ls_all_keys-recipient.
+
+*   Add grouped root node namespace.
+    MOVE-CORRESPONDING ls_all_keys TO ls_aifkey_bk.
+    AT NEW ns.
+*     get statistic for namespace.
+      ls_aifkey = ls_aifkey_bk.
+      CLEAR: ls_aifkey-ifname,
+             ls_aifkey-ifversion,
+             ls_aifkey-nsrecipient,
+             ls_aifkey-recipient,
+             ls_nst.
+      PERFORM f_get_status USING ls_aifkey CHANGING ls_tree_data.
+*     first add namespace node with description.
+      ls_nst_out-ns = ls_all_keys-ns.
+* read all textes from the text table
+      TRY.
+          ls_nst = lr_dba_ns->read_text_by_different_langu( ls_nst_out ).
+        CATCH /aif/cx_dba_reader. " do noting
+      ENDTRY.
+
+      IF ls_nst-nstx IS INITIAL.
+        ls_tree_data-node_text = ls_all_keys-ns.
+      ELSE.
+        CONCATENATE  ls_nst-nstx '-' ls_all_keys-ns INTO ls_tree_data-node_text SEPARATED BY space.
+      ENDIF.
+      ls_tree_data-parent = 0.
+      ADD 1 TO lv_nr.
+      ls_tree_data-nr = lv_nr.
+*     don't display recipient on namespace level.
+      CLEAR :
+          ls_tree_data-ifname,
+          ls_tree_data-ifversion,
+          ls_tree_data-keyfield_name,
+          ls_tree_data-keyvalue_text,
+          ls_tree_data-keyvalues    ,
+**          ls_tree_data-is_techuser  , " for display in Error handling
+          ls_tree_data-nsrecipient  ,
+          ls_tree_data-recipient    .
+      ls_tree_data-ns = ls_all_keys-ns.
+      ls_tree_data-collapsed_icon = '@U8@'.  "U8
+      ls_tree_data-expanded_icon  = '@U8@'.  "U8
+      APPEND ls_tree_data TO ct_tree_data.
+      lv_nr_2nd = lv_nr.
+
+      ls_tree_data-ifname = ls_aifkey_bk-ifname.
+      ls_tree_data-ifversion = ls_aifkey_bk-ifversion.
+    ENDAT.
+    AT NEW ifversion.
+*     does this namespace has multiple recipients to display?
+      ls_aifkey = ls_aifkey_bk.
+      CLEAR: ls_aifkey-nsrecipient,
+             ls_aifkey-recipient.
+
+      PERFORM check_one_recipient USING pt_all_keys_0102
+                                        ls_aifkey
+                               CHANGING lv_flag_once.
+      IF lv_flag_once = abap_true. "
+        " later will add second level " namespace/interface/version/recipient
+      ELSE." add interface node at second level for adding third level recipent node later
+*     get statistic for interface with third level.
+        PERFORM f_get_status USING ls_aifkey CHANGING ls_tree_data.
+        lv_tooltip = TEXT-t02.
+        CONCATENATE '@7P\Q' lv_tooltip '@' INTO ls_tree_data-collapsed_icon.  "FN
+        CONCATENATE '@7P\Q' lv_tooltip '@' INTO ls_tree_data-expanded_icon.   "FO
+        ls_tree_data-node_text = lv_nodetext.
+        CLEAR :
+          ls_tree_data-keyfield_name,
+          ls_tree_data-keyvalue_text,
+          ls_tree_data-keyvalues    ,
+**          ls_tree_data-is_techuser  , " for display in Error handling
+          ls_tree_data-nsrecipient  ,
+          ls_tree_data-recipient    .
+*     set parent and self node number.
+        ls_tree_data-parent = lv_nr_2nd.
+        ADD 1 TO lv_nr.
+        ls_tree_data-nr = lv_nr.
+        APPEND ls_tree_data TO ct_tree_data.
+        lv_nr_3rd = lv_nr.
+      ENDIF.
+    ENDAT.
+    ls_aifkey = ls_aifkey_bk.
+
+    ls_tree_data-keyfield_name = ls_aifkey-keyfield_name.
+    ls_tree_data-keyvalue_text = ls_aifkey-keyvalue_text.
+    ls_tree_data-keyvalues     = ls_aifkey-keyvalues.
+    ls_tree_data-is_techuser   = ls_aifkey-is_techuser.
+    ls_tree_data-nsrecipient   = ls_aifkey-nsrecipient.
+    ls_tree_data-recipient     = ls_aifkey-recipient.
+
+    PERFORM f_check_mail_notification USING pt_roles lt_alrt_usrnot CHANGING ls_tree_data.
+    PERFORM f_alert_management CHANGING ls_tree_data.
+
+
+    IF lv_flag_once = abap_true. " add interface node at second level
+*     get statistic for interface without third level.
+      PERFORM f_get_status USING ls_aifkey CHANGING ls_tree_data.
+
+      ls_tree_data-node_text = lv_nodetext.
+      CONCATENATE ls_aifkey-nsrecipient '/'  ls_aifkey-recipient INTO lv_tooltip.
+      IF NOT ls_aifkey-keyvalue_text IS INITIAL.
+        CONCATENATE lv_tooltip ls_aifkey-keyvalue_text INTO lv_tooltip SEPARATED BY ':'.
+      ENDIF.
+      CONCATENATE '@7P\Q' lv_tooltip '@' INTO ls_tree_data-collapsed_icon.
+      CONCATENATE '@7P\Q' lv_tooltip '@' INTO ls_tree_data-expanded_icon.
+*     set parent and self node number.
+      ls_tree_data-parent    = lv_nr_2nd.
+      ADD 1 TO lv_nr.
+      ls_tree_data-nr = lv_nr.
+      APPEND ls_tree_data TO ct_tree_data.
+    ELSE.                        " add recipent node at third level.
+*     get statistic for recipient at third level.
+      PERFORM f_get_status USING ls_aifkey CHANGING ls_tree_data.
+
+      ls_tree_data-node_text = ls_aifkey-recipient.
+      CONCATENATE ls_aifkey-nsrecipient '/'  ls_aifkey-recipient INTO lv_tooltip.
+      IF NOT ls_aifkey-keyvalue_text IS INITIAL.
+        CONCATENATE lv_tooltip ls_aifkey-keyvalue_text INTO lv_tooltip SEPARATED BY ':'.
+      ENDIF.
+      CONCATENATE '@ID\Q' lv_tooltip '@' INTO ls_tree_data-collapsed_icon.
+      CONCATENATE '@ID\Q' lv_tooltip '@' INTO ls_tree_data-expanded_icon.
+*     set parent and self node number.
+      ls_tree_data-parent    = lv_nr_3rd.
+      ADD 1 TO lv_nr.
+      ls_tree_data-nr = lv_nr.
+      APPEND ls_tree_data TO ct_tree_data.
+    ENDIF.
+    CLEAR ls_tree_data.
+  ENDLOOP.
+
+ENDFORM.                    " F_BUILD_TREE
+
+*&---------------------------------------------------------------------*
+*&      Form  F_GET_STATUS
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_LS_AIFKEY  text
+*      <--P_LS_TREE_DATA  text
+*----------------------------------------------------------------------*
+FORM f_get_status  USING    ps_aifkey TYPE /aif/key_data_st
+                   CHANGING cs_tree_data TYPE /aif/tree_data.
+
+  DATA: lt_statistics TYPE /aif/intf_statistics_tt,
+        ls_statistics TYPE /aif/intf_statistics_st,
+        ls_date_range TYPE cvs_sodt,
+        lv_time_selected TYPE abap_boolean.
+*   get status statistic
+  IF NOT gv_select_dates_0100 IS INITIAL.
+    ls_date_range-sign = 'I'.
+    ls_date_range-option = 'BT'.
+    ls_date_range-low = gv_date_begin_0100.
+    ls_date_range-high = gv_date_end_0100.
+  ELSE.
+    CLEAR ls_date_range.
+  ENDIF.
+  IF sy-dbsys = /aif/if_globals=>gc_hdb_sys.
+    lv_time_selected = abap_true.
+  ENDIF.
+
+  lt_statistics = /aif/cl_aif_msg_statistic_pro=>return_statistics(
+      iv_ns         = ps_aifkey-ns
+      iv_ifname     = ps_aifkey-ifname
+      iv_ifversion  = ps_aifkey-ifversion
+      iv_nsrecip    = ps_aifkey-nsrecipient
+      iv_recipient  = ps_aifkey-recipient
+      is_techuser   = cs_tree_data-is_techuser
+      is_date_range = ls_date_range
+      iv_time_selected = lv_time_selected ).
+  READ TABLE lt_statistics INTO ls_statistics INDEX 1.
+*  IF sy-subrc IS INITIAL.
+  cs_tree_data-count_all = ls_statistics-count_all.
+  cs_tree_data-count_e   = ls_statistics-count_e.
+  cs_tree_data-count_w   = ls_statistics-count_w.
+  cs_tree_data-count_a   = ls_statistics-count_a.
+  cs_tree_data-count_i   = ls_statistics-count_i.
+  cs_tree_data-count_s   = ls_statistics-count_s.
+  cs_tree_data-count_c   = ls_statistics-count_c.
+*  ENDIF.
+*   get light sign
+  IF cs_tree_data-count_e > 0 OR cs_tree_data-count_a > 0.
+    cs_tree_data-status_icon = '1'.
+  ELSEIF cs_tree_data-count_w > 0.
+    cs_tree_data-status_icon = '2'.
+  ELSEIF cs_tree_data-count_all > 0.
+    cs_tree_data-status_icon = '3'.
+  ELSE.
+    cs_tree_data-status_icon = '0'.
+  ENDIF.
+
+ENDFORM.                    " F_GET_STATUS
+*&---------------------------------------------------------------------*
+*&      Form  CHECK_ONE_RECIPIENT
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_PT_ALL_KEYS_0102  text
+*      -->P_LS_AIFKEY  text
+*      <--P_LV_FLAG_ONCE  text
+*----------------------------------------------------------------------*
+FORM check_one_recipient  USING    pt_all_keys_0102 TYPE /aif/key_data_tt
+                                   ps_aifkey        TYPE /aif/key_data_st
+                          CHANGING cv_flag_once     TYPE boolean.
+  DATA: lv_count     TYPE i.
+  LOOP AT pt_all_keys_0102 TRANSPORTING NO FIELDS
+    WHERE ns         = ps_aifkey-ns
+    AND   ifname     = ps_aifkey-ifname
+    AND   ifversion  = ps_aifkey-ifversion
+    .
+    lv_count = lv_count + 1.
+  ENDLOOP.
+  IF lv_count > 1.
+    cv_flag_once = abap_false. " mulitple recipient under same namespace/interface/version/recipient.
+  ELSE.
+    cv_flag_once = abap_true.  " only one recipient under same namespace/interface/version/recipient.
+  ENDIF.
+ENDFORM.                    " CHECK_ONE_RECIPIENT
+
+
+*&---------------------------------------------------------------------*
+*&      Form  f_add_tree_nodes_new
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->IT_RECIP_TECH  text
+*      -->PT_TREE_DATA   text
+*      -->EV_HIDDEN      text
+*----------------------------------------------------------------------*
+FORM f_add_tree_nodes_new  USING it_recip_tech TYPE tt_recip_tech
+                        CHANGING pt_tree_data TYPE /aif/tree_data_tt
+                                 ev_hidden TYPE char1.
+
+* add nodes to tree
+  FIELD-SYMBOLS: <ls_data>       TYPE /aif/tree_data,
+                 <lfs_tree_data> TYPE ts_tree_data,
+                 <lfs_tree_root> TYPE ts_tree_data.
+
+  DATA: ls_temp_node TYPE /aif/tree_data,
+        lv_node_key  TYPE salv_de_node_key.
+  DATA: lr_node      TYPE REF TO cl_salv_node,
+        lr_nodes     TYPE REF TO cl_salv_nodes,
+        ls_node_data TYPE ts_tree_data.
+
+  CLEAR ev_hidden.
+
+  ev_hidden = abap_true.
+
+  lr_nodes = gr_alv_tree_0100->get_nodes( ).
+
+* summarize the msg numbers
+  LOOP AT pt_tree_data ASSIGNING <ls_data>.
+
+    READ TABLE it_recip_tech TRANSPORTING NO FIELDS WITH KEY nsrecipient = <ls_data>-nsrecipient
+                                                             recipient = <ls_data>-recipient
+                                                             is_techuser = 'X'.
+    IF sy-subrc <> 0.
+
+    ELSE.
+      CLEAR ev_hidden.
+    ENDIF.
+
+  ENDLOOP.
+
+  LOOP AT gt_tree_buffer ASSIGNING <lfs_tree_data>.
+    READ TABLE pt_tree_data ASSIGNING <ls_data>
+      WITH KEY ns = <lfs_tree_data>-node_data-ns
+               ifname    = <lfs_tree_data>-node_data-ifname
+               ifversion = <lfs_tree_data>-node_data-ifversion
+               keyvalues = <lfs_tree_data>-node_data-keyvalues.
+    IF sy-subrc <> 0.
+      <lfs_tree_data>-mode = c_mode_delete.
+    ELSE.
+      ls_temp_node = <lfs_tree_data>-node_data.
+      lv_node_key  = <lfs_tree_data>-node_data-node_key.
+      CLEAR ls_temp_node-node_key.
+      IF ls_temp_node <> <ls_data>.
+        <lfs_tree_data>-mode = c_mode_update.
+        <lfs_tree_data>-node_data = <ls_data>.
+        <lfs_tree_data>-node_data-node_key =  lv_node_key.
+        DELETE pt_tree_data INDEX sy-tabix.
+      ELSE.
+        DELETE pt_tree_data INDEX sy-tabix.
+        CLEAR <lfs_tree_data>-mode.
+      ENDIF.
+    ENDIF.
+  ENDLOOP.
+
+  LOOP AT pt_tree_data ASSIGNING <ls_data>.
+    ls_node_data-node_data = <ls_data>.
+    ls_node_data-mode = c_mode_insert.
+    ls_node_data-ns = <ls_data>-ns.
+    ls_node_data-parent = <ls_data>-parent.
+    APPEND ls_node_data TO gt_tree_buffer.
+  ENDLOOP.
+
+  LOOP AT gt_tree_buffer ASSIGNING <lfs_tree_data>.
+    CASE <lfs_tree_data>-mode.
+      WHEN c_mode_insert.
+        CHECK <lfs_tree_data>-node_data-parent = 0.
+        IF <lfs_tree_data>-node_data-parent = 0.
+          TRY.
+              CALL METHOD lr_nodes->add_node
+                EXPORTING
+                  related_node   = ''
+                  relationship   = if_salv_c_node_relation=>last_child
+                  data_row       = <lfs_tree_data>-node_data
+                  collapsed_icon = <lfs_tree_data>-node_data-collapsed_icon
+                  expanded_icon  = <lfs_tree_data>-node_data-expanded_icon
+                  text           = <lfs_tree_data>-node_data-node_text
+                  expander       = abap_true
+                  folder         = abap_true
+                RECEIVING
+                  node           = lr_node.
+            CATCH cx_salv_msg .                         "#EC NO_HANDLER
+              CONTINUE. " add node fail
+          ENDTRY.
+        ELSE.
+          READ TABLE gt_tree_buffer ASSIGNING <lfs_tree_root>
+                            WITH KEY ns = <lfs_tree_data>-ns
+                                     node_data-nr = <lfs_tree_data>-parent.
+          ASSERT sy-subrc = 0.
+          IF <lfs_tree_root>-node_data-node_key IS NOT INITIAL.
+            TRY.
+                CALL METHOD lr_nodes->add_node
+                  EXPORTING
+                    related_node   = <lfs_tree_root>-node_data-node_key
+                    relationship   = if_salv_c_node_relation=>last_child
+                    data_row       = <lfs_tree_data>-node_data
+                    collapsed_icon = <lfs_tree_data>-node_data-collapsed_icon
+                    expanded_icon  = <lfs_tree_data>-node_data-expanded_icon
+                    text           = <lfs_tree_data>-node_data-node_text
+                    expander       = abap_true
+                    folder         = abap_true
+                  RECEIVING
+                    node           = lr_node.
+              CATCH cx_salv_msg .                       "#EC NO_HANDLER
+                CONTINUE. " add node fail
+            ENDTRY.
+          ENDIF.
+        ENDIF.
+        <lfs_tree_data>-node_data-node_key = lr_node->get_key( ).
+
+        PERFORM f_update_icon USING lr_node '@3Z@' 'All Messages'(300) 'COUNT_ALL_TEXT' <lfs_tree_data>-node_data-count_all.
+        PERFORM f_update_icon USING lr_node '@F1@' 'Technical Errors'(301) 'COUNT_A_TEXT' <lfs_tree_data>-node_data-count_a.
+        PERFORM f_update_icon USING lr_node '@AG@' 'Application Errors'(302) 'COUNT_E_TEXT' <lfs_tree_data>-node_data-count_e.
+        PERFORM f_update_icon USING lr_node '@5D@' 'Warnings'(303) 'COUNT_W_TEXT' <lfs_tree_data>-node_data-count_w.
+        PERFORM f_update_icon USING lr_node '@CG@' 'In Process'(304) 'COUNT_I_TEXT' <lfs_tree_data>-node_data-count_i.
+        PERFORM f_update_icon USING lr_node '@DF@' 'Successfully Processed'(305) 'COUNT_S_TEXT' <lfs_tree_data>-node_data-count_s.
+        PERFORM f_update_icon USING lr_node '@3J@' 'Canceled Messages'(306) 'COUNT_C_TEXT' <lfs_tree_data>-node_data-count_c.
+
+        PERFORM f_update_icon_enh USING <lfs_tree_data>-node_data CHANGING lr_node.
+
+* for update
+      WHEN c_mode_update.
+        TRY.
+            lr_node = lr_nodes->get_node( <lfs_tree_data>-node_data-node_key ).
+          CATCH cx_salv_msg .                           "#EC NO_HANDLER
+            CONTINUE. " get node fail in case of lasy loading, children was not added
+        ENDTRY.
+
+        lr_node->set_data_row( <lfs_tree_data>-node_data ).
+        PERFORM f_update_icon USING lr_node '@3Z@' 'All Messages'(300) 'COUNT_ALL_TEXT' <lfs_tree_data>-node_data-count_all.
+        PERFORM f_update_icon USING lr_node '@F1@' 'Technical Errors'(301) 'COUNT_A_TEXT' <lfs_tree_data>-node_data-count_a.
+        PERFORM f_update_icon USING lr_node '@AG@' 'Application Errors'(302) 'COUNT_E_TEXT' <lfs_tree_data>-node_data-count_e.
+        PERFORM f_update_icon USING lr_node '@5D@' 'Warnings'(303) 'COUNT_W_TEXT' <lfs_tree_data>-node_data-count_w.
+        PERFORM f_update_icon USING lr_node '@CG@' 'In Process'(304) 'COUNT_I_TEXT' <lfs_tree_data>-node_data-count_i.
+        PERFORM f_update_icon USING lr_node '@DF@' 'Successfully Processed'(305) 'COUNT_S_TEXT' <lfs_tree_data>-node_data-count_s.
+        PERFORM f_update_icon USING lr_node '@3J@' 'Canceled Messages'(306) 'COUNT_C_TEXT' <lfs_tree_data>-node_data-count_c.
+
+        PERFORM f_update_icon_enh USING <lfs_tree_data>-node_data CHANGING lr_node.
+
+
+      WHEN c_mode_delete.
+        TRY.
+            lr_node = lr_nodes->get_node( <lfs_tree_data>-node_data-node_key ).
+            lr_node->delete( ).
+            lr_node = lr_nodes->get_node( <lfs_tree_data>-node_data-node_key ).
+          CATCH cx_salv_msg .                           "#EC NO_HANDLER
+        ENDTRY.
+        DELETE TABLE gt_tree_buffer FROM <lfs_tree_data>.
+      WHEN OTHERS.
+    ENDCASE.
+  ENDLOOP.
+
+ENDFORM.                    "f_add_tree_nodes_new
+
+*&---------------------------------------------------------------------*
+*&      Form  f_alert_management
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->PS_TREE_DATA   text
+*----------------------------------------------------------------------*
+FORM f_alert_management CHANGING ps_tree_data TYPE /aif/tree_data.
+
+  DATA: lr_alert_selector TYPE REF TO cl_alert_selector,
+        lr_alert          TYPE REF TO cl_alert,
+        lt_alert_idx      TYPE TABLE OF /aif/alert_idx,
+        lt_alert          TYPE salrttralr,
+        lt_salrt          TYPE TABLE OF salrt.
+
+  FIELD-SYMBOLS: <ls_alert_idx> TYPE /aif/alert_idx.
+
+  IF ps_tree_data-recipient IS NOT INITIAL.
+    ps_tree_data-alert = '@BG@'.
+
+*    SELECT * FROM /aif/alert_idx INTO TABLE lt_alert_idx
+    SELECT DISTINCT alert_id                            "#EC CI_NOFIELD
+      FROM /aif/alert_idx
+      INTO CORRESPONDING FIELDS OF TABLE lt_alert_idx  "2156612 performance optimization
+      WHERE ns = ps_tree_data-ns
+      AND   ifname = ps_tree_data-ifname
+      AND   ifver = ps_tree_data-ifversion
+      AND   nsrecip = ps_tree_data-nsrecipient
+      AND   recipient = ps_tree_data-recipient
+      AND   alert_id <> '00000'.
+    IF NOT lt_alert_idx[] IS INITIAL.
+      SELECT *  INTO TABLE lt_salrt
+        FROM salrt
+        FOR ALL ENTRIES IN lt_alert_idx
+        WHERE externalid = lt_alert_idx-alert_id
+        AND   status <> 'C'.
+      IF sy-subrc = 0.
+        ps_tree_data-alert = '@BF@'.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+  IF /aif/cl_notification_api=>is_notification_service_active( ).
+
+    DATA(lr_notif_api) = /aif/cl_notification_api=>get_instance( ).
+    IF lr_notif_api->is_confirmation_active(
+      EXPORTING
+        iv_ns        = ps_tree_data-ns
+        iv_ifname    = ps_tree_data-ifname
+        iv_ifversion = ps_tree_data-ifversion
+      ) = abap_true.
+
+      ps_tree_data-alert = '@BF@'.
+    ENDIF.
+
+
+  ENDIF.
+
+
+
+ENDFORM.                    "f_alert_management
+
+*&---------------------------------------------------------------------*
+*&      Form  f_check_mail_notification
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->PT_TREE_DATA   text
+*----------------------------------------------------------------------*
+FORM f_check_mail_notification
+      USING
+          pt_roles TYPE smum_agr_users
+          pt_alrt_usrnot TYPE /aif/alrt_usrnot_tt
+      CHANGING ps_tree_data TYPE /aif/tree_data.
+  DATA: lv_message TYPE /aif/t_alrt_user-message.
+  DATA: lt_users     TYPE TABLE OF str_users,
+        ls_user      TYPE str_users,
+        lt_alrt_role TYPE TABLE OF /aif/t_alrt_role.
+
+  FIELD-SYMBOLS: <ls_alrt_role>   TYPE /aif/t_alrt_role,
+                 <ls_alrt_usrnot> TYPE /aif/alrt_usrnot.
+
+  IF ps_tree_data-recipient IS NOT INITIAL.
+
+* first look into interface-specific user mail notification
+    READ TABLE pt_alrt_usrnot ASSIGNING <ls_alrt_usrnot>
+         WITH KEY ns = ps_tree_data-ns
+                  ifname = ps_tree_data-ifname
+                  ifversion = ps_tree_data-ifversion
+                  nsrecipient = ps_tree_data-nsrecipient
+                  recipient = ps_tree_data-recipient.
+    IF sy-subrc <> 0.
+* if no user-specific setting, maybe interface-specific default for all users?
+      READ TABLE pt_alrt_usrnot ASSIGNING <ls_alrt_usrnot>
+           WITH KEY ns = ps_tree_data-ns
+                    ifname = ps_tree_data-ifname
+                    ifversion = ps_tree_data-ifversion
+                    nsrecipient = ps_tree_data-nsrecipient
+                    recipient = ps_tree_data-recipient.
+    ENDIF.
+    IF sy-subrc = 0.
+      IF <ls_alrt_usrnot>-send_mail IS INITIAL.
+        ps_tree_data-mail = '@DO@'.
+      ELSE.
+        IF <ls_alrt_usrnot>-send_always IS INITIAL.
+          ps_tree_data-mail = '@1S@'.
+        ELSE.
+          ps_tree_data-mail = '@KO@'.
+        ENDIF.
+      ENDIF.
+    ELSE.
+* no entry in /AIF/ALRT_USRNOT, so check user/role specific setting (interface independent)
+      SELECT SINGLE message FROM /aif/t_alrt_user INTO lv_message
+                  WHERE nsrecipient = ps_tree_data-nsrecipient
+                    AND recipient   = ps_tree_data-recipient
+                    AND uname       = sy-uname.
+      IF sy-subrc = 0.
+        IF lv_message = 'N'.
+          ps_tree_data-mail = '@DO@'.
+        ELSE.
+          ps_tree_data-mail = '@1S@'.
+        ENDIF.
+      ELSE.
+        IF NOT pt_roles[] IS INITIAL.
+          SELECT * INTO TABLE lt_alrt_role
+            FROM /aif/t_alrt_role
+            FOR ALL ENTRIES IN pt_roles
+            WHERE agr_name = pt_roles-agr_name
+            AND nsrecipient = ps_tree_data-nsrecipient
+            AND recipient   = ps_tree_data-recipient
+          AND   include_overview = 'X'.                 "#EC CI_NOFIRST
+        ENDIF.
+
+        LOOP AT lt_alrt_role ASSIGNING <ls_alrt_role>.
+          IF <ls_alrt_role>-message = 'N'.
+            ps_tree_data-mail = '@DO@'.
+          ELSE.
+            ps_tree_data-mail = '@1S@'.
+          ENDIF.
+        ENDLOOP.
+
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+ENDFORM.                    "f_check_mail_notification
+
+*&---------------------------------------------------------------------*
+*&      Form  f_update_icon_notification
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->PR_NODE          text
+*      -->PV_ICON_NAME     text
+*      -->PV_ICON_TOOLTIP  text
+*      -->PV_COLUMN_NAME   text
+*      -->PV_VALUE         text
+*----------------------------------------------------------------------*
+FORM f_update_icon_notification USING    pr_node TYPE REF TO cl_salv_node
+                            pv_icon_name TYPE c
+                            pv_icon_tooltip TYPE c
+                            pv_column_name TYPE c.
+
+
+  DATA: lr_item TYPE REF TO cl_salv_item,
+        lv_icon TYPE salv_de_tree_image.
+  TRY.
+      lr_item = pr_node->get_item( pv_column_name ).
+    CATCH cx_salv_msg.                                  "#EC NO_HANDLER
+  ENDTRY.
+
+  CLEAR: lv_icon.
+  IF NOT pv_icon_name IS INITIAL.
+    CALL FUNCTION 'ICON_CREATE'
+      EXPORTING
+        name                  = pv_icon_name
+        info                  = pv_icon_tooltip
+      IMPORTING
+        result                = lv_icon
+      EXCEPTIONS
+        icon_not_found        = 1
+        outputfield_too_short = 2
+        OTHERS                = 3.
+  ENDIF.
+  lr_item->set_icon( lv_icon ).
+  lr_item->set_value( '' ).
+*   display value as hyperlink.
+  lr_item->set_type( if_salv_c_cell_type=>hotspot ).
+
+
+
+ENDFORM.                    "f_update_icon_notification
+
+*&---------------------------------------------------------------------*
+*&      Form  f_update_icon_alert
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->PR_NODE          text
+*      -->PV_ICON_NAME     text
+*      -->PV_ICON_TOOLTIP  text
+*      -->PV_COLUMN_NAME   text
+*      -->PV_VALUE         text
+*----------------------------------------
+FORM f_update_icon_alert USING    pr_node TYPE REF TO cl_salv_node
+                            pv_icon_name TYPE c
+                            pv_column_name TYPE c.
+
+
+  DATA: lr_item             TYPE REF TO cl_salv_item,
+        lv_icon             TYPE salv_de_tree_image,
+        lv_icon_tooltip(20) TYPE c VALUE ' '.
+
+  TRY.
+      lr_item = pr_node->get_item( pv_column_name ).
+      IF pv_icon_name = '@BF@'.
+        lv_icon_tooltip = 'Click to Confirm'(307) .
+*   display number as hyperlink.
+        lr_item->set_type( if_salv_c_cell_type=>hotspot ).
+      ELSE.
+        lr_item->set_type( if_salv_c_cell_type=>hotspot ).
+        lv_icon_tooltip = 'No Alert Active'(308).
+      ENDIF.
+      CLEAR: lv_icon.
+      IF NOT pv_icon_name IS INITIAL.
+        CALL FUNCTION 'ICON_CREATE'
+          EXPORTING
+            name                  = pv_icon_name
+            info                  = lv_icon_tooltip
+            add_stdinf            = ''
+          IMPORTING
+            result                = lv_icon
+          EXCEPTIONS
+            icon_not_found        = 1
+            outputfield_too_short = 2
+            OTHERS                = 3.
+      ENDIF.
+      lr_item->set_icon( lv_icon ).
+      lr_item->set_value( '' ).
+    CATCH cx_salv_msg.                                  "#EC NO_HANDLER
+  ENDTRY.
+
+
+ENDFORM.                    "f_update_icon_alert
+
+*&---------------------------------------------------------------------*
+*&      Form  f_update_icon_alert_management
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->PR_NODE          text
+*      -->PV_ICON_NAME     text
+*      -->PV_ICON_TOOLTIP  text
+*      -->PV_COLUMN_NAME   text
+*      -->PV_VALUE         text
+*----------------------------------------
+FORM f_update_icon_enh USING ps_tree_data TYPE /aif/tree_data
+                       CHANGING pr_node TYPE REF TO cl_salv_node.
+
+  IF ps_tree_data-alert = '@BG@'.
+    PERFORM f_update_icon_alert USING pr_node '@BG@' 'ALERT'.
+  ELSEIF ps_tree_data-alert = '@BF@'.
+    PERFORM f_update_icon_alert USING pr_node '@BF@' 'ALERT'.
+  ENDIF.
+  IF ps_tree_data-mail = '@DO@'.
+    PERFORM f_update_icon_notification USING pr_node '@DO@' 'No Mail'(310) 'MAIL'.
+  ELSEIF ps_tree_data-mail = '@1S@'.
+    PERFORM f_update_icon_notification USING pr_node '@1S@' 'Mail for Next Alert'(309) 'MAIL'.
+  ELSEIF ps_tree_data-mail = '@KO@'.
+    PERFORM f_update_icon_notification USING pr_node '@KO@' 'Mail for Every Single Error'(311) 'MAIL'.
+  ENDIF.
+
+ENDFORM.                    "f_update_icon_enh
+*&---------------------------------------------------------------------*
+*&      Form  f_update_node
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->IT_RECIP_TECH  text
+*      -->PT_TREE_DATA   text
+*      -->EV_HIDDEN      text
+*----------------------------------------------------------------------*
+FORM f_update_node USING ps_columnname  TYPE lvc_fname
+                         ps_send_mail   TYPE sc_sendmai
+                         ps_send_always TYPE /aif/alrt_send_always
+                   CHANGING pr_node     TYPE REF TO cl_salv_node.
+
+
+  IF ps_columnname = 'ALERT'.
+    PERFORM f_update_icon_alert USING pr_node '@BG@' 'ALERT'.
+  ENDIF.
+
+  IF ps_columnname = 'MAIL'.
+    IF ps_send_mail IS INITIAL.
+      PERFORM f_update_icon_notification USING pr_node '@DO@' 'No Mail'(310) 'MAIL'.
+    ELSE.
+      IF ps_send_always IS INITIAL.
+        PERFORM f_update_icon_notification USING pr_node '@1S@' 'Mail for Next Alert'(309) 'MAIL'.
+      ELSE.
+        PERFORM f_update_icon_notification USING pr_node '@KO@' 'Mail for Every Single Error'(311) 'MAIL'.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+
+
+ENDFORM.                    "f_update_node
+*&---------------------------------------------------------------------*
+*&      Form  trigger_idx_data_loader
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->IS_FINF    text
+*----------------------------------------------------------------------*
+FORM trigger_idx_data_loader USING is_finf TYPE /aif/t_finf.
+
+  DATA lv_selset        TYPE /aif/seloptname.
+  DATA lr_job_mgr       TYPE REF TO /aif/cl_moni_job_manager.
+  DATA lr_no_engine     TYPE REF TO /aif/cx_aif_engine_not_found.
+  DATA lref_exception   TYPE REF TO /aif/cx_error_handling_general.
+  DATA lt_job_logs      TYPE /aif/tbtc5_tt.
+  DATA lr_tjss_inf      TYPE REF TO /aif/cl_db_access_tjss_inf.
+  DATA ls_tjss_inf      TYPE /aif/t_tjss_inf.
+  DATA lv_conf_mode     TYPE /aif/confirm_mode.
+  DATA lv_popup         TYPE boolean.
+
+  FIELD-SYMBOLS <ls_job_log>   TYPE tbtc5.
+
+  lr_tjss_inf = /aif/cl_db_access_tjss_inf=>get_instance( ).
+
+  TRY.
+      ls_tjss_inf = lr_tjss_inf->read_single(
+          iv_ns        = is_finf-ns
+          iv_ifname    = is_finf-ifname
+          iv_ifversion = is_finf-ifversion ).
+
+      lv_selset = ls_tjss_inf-seloptionname.
+      CHECK lv_selset IS NOT INITIAL.
+* make sure for each engine, only trigger once per Refresh
+      READ TABLE gt_selsets TRANSPORTING NO FIELDS  WITH TABLE KEY table_line = lv_selset.
+      CHECK sy-subrc IS NOT INITIAL.
+      INSERT lv_selset INTO TABLE gt_selsets.
+
+      lr_job_mgr = /aif/cl_moni_job_manager=>get_job_manager(
+                      iv_report_name = /aif/if_globals=>gc_moni_job_rpt_name-std_tj
+                      iv_selset      = lv_selset ).
+      CHECK lr_job_mgr IS BOUND.
+      lv_popup = lr_job_mgr->check_jobs( ).
+
+      IF lv_popup = abap_true.
+        APPEND lv_selset TO gt_selsets_popup.
+        RETURN.
+      ENDIF.
+
+* check every registered job for the application engine
+      lr_job_mgr->trigger_jobs( ).
+
+* after check, job log may be detected
+      lt_job_logs = lr_job_mgr->return_job_logs( ).
+* inject log messages into the local log handle, EH will display later
+      LOOP AT lt_job_logs ASSIGNING <ls_job_log>.
+        /aif/cl_transaction_handler=>add_message_in_applog(
+          iv_msgty      = <ls_job_log>-msgtype
+          iv_msgid      = <ls_job_log>-msgid
+          iv_msgno      = <ls_job_log>-msgno
+          iv_msgv1      = <ls_job_log>-msgv1
+          iv_msgv2      = <ls_job_log>-msgv2
+          iv_msgv3      = <ls_job_log>-msgv3
+          iv_msgv4      = <ls_job_log>-msgv4 ).
+      ENDLOOP.
+    CATCH cx_root. " #EC NO_HANDLER
+* no need to handle exception
+  ENDTRY.
+
+
+ENDFORM.                    "trigger_idx_data_loader

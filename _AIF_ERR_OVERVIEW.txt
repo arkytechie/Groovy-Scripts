@@ -1,0 +1,176 @@
+*&---------------------------------------------------------------------*
+*& Report  /AIF/ERR_OVERVIEW
+*&
+*&---------------------------------------------------------------------*
+*&
+*&
+*&---------------------------------------------------------------------*
+
+REPORT  /aif/err_overview.
+
+TYPE-POOLS: cndp.
+
+INCLUDE <icon>.
+
+DATA: gr_picture_0100      TYPE REF TO cl_gui_picture,
+      gr_calendar_0100     TYPE REF TO cl_gui_calendar,
+      gr_alv_tree_0100     TYPE REF TO cl_salv_tree,
+      gv_okcode_0100       TYPE sy-ucomm,
+      gv_select_dates_0100 TYPE c,
+      gv_date_begin_0100   TYPE /aif/date_from,
+      gv_date_end_0100     TYPE /aif/date_to,
+      gv_time_begin_0100   TYPE /aif/time_from,
+      gv_time_end_0100     TYPE /aif/time_to,
+      gv_max_0100          TYPE i VALUE 1000,
+      gv_only_errors_0100  TYPE c VALUE 'X'.
+
+DATA: gc_para_maxnr   TYPE char10 VALUE 'MAXNR',
+      gc_para_begindt TYPE char10 VALUE 'BEGINDT',
+      gc_para_enddt   TYPE char10 VALUE 'ENDDT',
+      gc_initial_time TYPE syuzeit VALUE '000000',
+      gc_max_time     TYPE syuzeit VALUE '235959'.
+DATA: gv_display_233 TYPE boolean.
+DATA: gr_container_main  TYPE REF TO cl_gui_custom_container,
+      gr_upper_container TYPE REF TO cl_gui_container,
+      gr_lower_container TYPE REF TO cl_gui_container,
+      gr_left            TYPE REF TO cl_gui_container,
+      gr_right           TYPE REF TO cl_gui_container,
+      gr_main_splitter   TYPE REF TO cl_gui_splitter_container,
+      gr_splitter_upper  TYPE REF TO cl_gui_splitter_container,
+      gr_splitter_left   TYPE REF TO cl_gui_splitter_container,
+      gr_top             TYPE REF TO cl_gui_container,
+      gr_medium          TYPE REF TO cl_gui_container,
+      gr_bottom          TYPE REF TO cl_gui_container.
+DATA: gt_tree_data_0100 TYPE TABLE OF /aif/tree_data,
+      gt_all_keys_0100  TYPE TABLE OF /aif/key_data.
+
+TYPES:  tt_all_keys_0101  TYPE TABLE OF /aif/key_data_st, " new structure for tree display
+        tt_all_keys_0100  TYPE TABLE OF /aif/key_data.
+DATA    gt_all_keys_0102  TYPE /aif/key_data_tt.          " sort table for counting recipients for per interface.
+
+* data for screen 0400 (message summary)
+DATA: gv_okcode_0400 TYPE sy-ucomm,
+      gv_ns_0400 TYPE /aif/t_finf-ns,
+      gv_ns_txt_0400 TYPE /aif/t_nst-nstx,
+      gv_ifname_0400 TYPE /aif/t_finf-ifname,
+      gv_ifversion_0400 TYPE /aif/t_finf-ifversion,
+      gv_ifname_txt_0400 TYPE /aif/t_finft-ifdesc,
+      gv_nr_data_msg_0400 TYPE i,
+      gv_nr_appllog_msg_0400 TYPE i,
+      gv_max_0400 TYPE /aif/max_number_msg_summary VALUE 1000,
+      gr_alv_container_0400 TYPE REF TO cl_gui_custom_container,
+      gr_alv_table_0400 TYPE REF TO cl_salv_table,
+      gv_init_0400 TYPE c.
+
+DATA: gt_msg_output_0400 TYPE /aif/msg_summary_tt.
+
+* dynamic documents
+DATA: gr_document       TYPE REF TO cl_dd_document,
+      gv_first_display  TYPE char1 VALUE 'X',
+      gv_load_from_db   TYPE char1 VALUE 'X',
+      gv_cust_if        TYPE boolean,
+      gv_first_display2 TYPE char1 VALUE 'X',
+      gs_im_layout_buf  TYPE /aif/im_layout,
+      gv_input_begindt  TYPE REF TO cl_dd_input_element,
+      gv_input_enddt    TYPE REF TO cl_dd_input_element,
+      gv_input_begintm  TYPE REF TO cl_dd_input_element,
+      gv_input_endtm    TYPE REF TO cl_dd_input_element,
+      gv_input_maxerr   TYPE REF TO cl_dd_input_element,
+      gv_bt_enddt       TYPE REF TO cl_dd_button_element,
+      gv_bt_begindt     TYPE REF TO cl_dd_button_element,
+      gv_bt_endtm       TYPE REF TO cl_dd_button_element,
+      gv_bt_begintm     TYPE REF TO cl_dd_button_element,
+      gv_bt_disperr     TYPE REF TO cl_dd_button_element,
+      gv_bt_selectdt    TYPE REF TO cl_dd_button_element.
+
+CONSTANTS: c_mode_update TYPE char1 VALUE 'U',
+           c_mode_delete TYPE char1 VALUE 'D',
+           c_mode_insert TYPE char1 VALUE 'I'.
+
+TYPES: BEGIN OF ts_recip_tech.
+         INCLUDE TYPE /aif/t_alrt_rec.
+         TYPES  is_techuser TYPE /aif/is_techuser.
+TYPES: END OF ts_recip_tech.
+TYPES: tt_recip_tech TYPE TABLE OF ts_recip_tech.
+
+TYPES: BEGIN OF   ts_tree_data,
+         ns        TYPE /aif/ns,
+         parent    TYPE i,
+         node_data TYPE /aif/tree_data,
+         mode      TYPE char1.
+TYPES: END OF ts_tree_data.
+TYPES: tt_tree_data TYPE TABLE OF ts_tree_data.
+DATA:  gt_tree_buffer TYPE tt_tree_data.
+
+DATA: gr_app_log_view_badi TYPE REF TO /aif/app_log_view_badi.
+*DATA gt_engines     TYPE SORTED TABLE OF /aif/engines WITH UNIQUE KEY appl_engine_id cust_ns_appl cust_appl_eng_id.
+DATA gt_selsets     TYPE HASHED TABLE OF /aif/seloptname WITH UNIQUE KEY table_line.
+DATA gt_selsets_popup     TYPE STANDARD TABLE OF /aif/seloptname.
+CALL SCREEN 0500.
+
+*----------------------------------------------------------------------*
+*       CLASS lcl_evt_handler DEFINITION
+*----------------------------------------------------------------------*
+*
+*----------------------------------------------------------------------*
+CLASS lcl_evt_handler DEFINITION.
+  PUBLIC SECTION.
+
+    METHODS:
+      constructor,
+      on_expand_nc FOR EVENT expand_empty_folder OF cl_salv_events_tree
+        IMPORTING node_key,
+      on_double_click FOR EVENT double_click OF cl_salv_events_tree
+        IMPORTING node_key columnname,                      "#EC NEEDED
+      on_link_click FOR EVENT link_click OF cl_salv_events_tree
+        IMPORTING node_key columnname,  " add link
+      on_date_selected FOR EVENT date_selected OF cl_gui_calendar
+        IMPORTING date_begin date_end	selection_table,      "#EC NEEDED
+      on_added_function FOR EVENT if_salv_events_functions~added_function OF cl_salv_events_tree
+        IMPORTING e_salv_function,
+      on_new_resources FOR EVENT resources_changed OF cl_gui_resources,
+      handle_begindt_buttons FOR EVENT clicked OF cl_dd_button_element, "f4 help
+      handle_enddt_buttons FOR EVENT clicked OF cl_dd_button_element, "f4 help
+      handle_begintm_buttons FOR EVENT clicked OF cl_dd_button_element, "f4 help
+      handle_endtm_buttons FOR EVENT clicked OF cl_dd_button_element, "f4 help
+      handle_selectdt_buttons FOR EVENT clicked OF cl_dd_button_element, " date restriction
+      handle_disperr_buttons FOR EVENT clicked OF cl_dd_button_element,
+      handle_input FOR EVENT entered OF cl_dd_input_element IMPORTING sender.
+  PRIVATE SECTION.
+    DATA: mv_acc_mode TYPE boolean.
+ENDCLASS.                    "lcl_evt_handler DEFINITION
+
+*----------------------------------------------------------------------*
+*       CLASS lcl_evt_handler_0400 DEFINITION
+*----------------------------------------------------------------------*
+*
+*----------------------------------------------------------------------*
+CLASS lcl_evt_handler_0400 DEFINITION.
+  PUBLIC SECTION.
+
+    METHODS:
+      on_double_click FOR EVENT double_click OF cl_salv_events_table
+        IMPORTING row column,                               "#EC NEEDED
+      on_link_click FOR EVENT link_click OF cl_salv_events_table
+        IMPORTING row column,
+      on_added_function FOR EVENT added_function OF cl_salv_events_table
+        IMPORTING e_salv_function.
+ENDCLASS.                    "lcl_evt_handler DEFINITION
+
+
+DATA: gr_event_handler_0400 TYPE REF TO lcl_evt_handler_0400.
+
+DATA: gr_handler TYPE REF TO lcl_evt_handler.
+
+
+INCLUDE /aif/err_overview_init_coo01.
+INCLUDE /aif/err_overview_user_coi01.
+INCLUDE /aif/err_overview_f01.
+INCLUDE /aif/err_overview_f02.
+INCLUDE /aif/err_overview_o02.
+INCLUDE /aif/err_overview_i02.
+INCLUDE /aif/err_overview_f03.
+INCLUDE /aif/err_overview_c01.
+INCLUDE /aif/err_overview_c02.
+
+INCLUDE /aif/err_overview_fill_f04.

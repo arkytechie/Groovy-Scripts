@@ -1,0 +1,929 @@
+*----------------------------------------------------------------------*
+***INCLUDE /AIF/ERR_OVERVIEW_F02 .
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Form  F_F4_DATE
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_GV_INPUT_BEGINDT_>VALUE  text
+*      <--P_LV_SELECTED_DATE  text
+*----------------------------------------------------------------------*
+FORM f_f4_date  USING    iv_input_date TYPE w3_qvalue
+                CHANGING ev_selected_date TYPE sydatum.
+
+  DATA: lv_date TYPE sydatum.
+
+  CALL FUNCTION 'CONVERT_DATE_TO_INTERNAL'
+    EXPORTING
+      date_external            = iv_input_date
+*     ACCEPT_INITIAL_DATE      =
+    IMPORTING
+      date_internal            = lv_date
+    EXCEPTIONS
+      date_external_is_invalid = 1
+      OTHERS                   = 2.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+            WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+  CALL FUNCTION 'F4_DATE'
+    EXPORTING
+      date_for_first_month         = lv_date
+*     DISPLAY                      = ' '
+*     FACTORY_CALENDAR_ID          = ' '
+*     GREGORIAN_CALENDAR_FLAG      = ' '
+*     HOLIDAY_CALENDAR_ID          = ' '
+*     PROGNAME_FOR_FIRST_MONTH     = ' '
+    IMPORTING
+      select_date                  = ev_selected_date
+*     SELECT_WEEK                  =
+*     SELECT_WEEK_BEGIN            =
+*     SELECT_WEEK_END              =
+    EXCEPTIONS
+      calendar_buffer_not_loadable = 0
+      date_after_range             = 0
+      date_before_range            = 0
+      date_invalid                 = 0
+      factory_calendar_not_found   = 0
+      holiday_calendar_not_found   = 0
+      parameter_conflict           = 0
+      OTHERS                       = 0.
+
+ENDFORM.                                                    " F_F4_DATE
+FORM f_f4_time USING    iv_input_time TYPE w3_qvalue
+               CHANGING ev_selected_time TYPE syuzeit.
+
+  DATA: lv_time          TYPE syuzeit,
+        lv_selected_time TYPE syuzeit.
+  CONSTANTS: lc_selected_time TYPE syuzeit VALUE ' 00000'.
+
+  CALL FUNCTION 'CONVERT_TIME_INPUT'
+    EXPORTING
+      input                     = iv_input_time
+    IMPORTING
+      output                    = lv_time
+    EXCEPTIONS
+      plausibility_check_failed = 1
+      wrong_format_in_input     = 2
+      OTHERS                    = 3.
+  IF sy-subrc <> 0.
+    MESSAGE e142(/aif/error_handling) WITH iv_input_time.
+  ENDIF.
+
+  CALL FUNCTION 'F4_CLOCK'
+    EXPORTING
+      start_time = lv_time
+    IMPORTING
+      selected_time = lv_selected_time.
+
+  IF lv_selected_time = lc_selected_time. "Cancel time selction
+    ev_selected_time = lv_time.
+  ELSE.
+    ev_selected_time = lv_selected_time.
+  ENDIF.
+
+ENDFORM.
+*&---------------------------------------------------------------------*
+*&      Form  F_ADJUST_CALENDAR_SELECTION
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f_date_validation USING iv_date TYPE w3_qvalue
+                              CHANGING ev_error TYPE c
+                                       ev_date TYPE sydatum.
+
+  CLEAR: ev_error.
+  CALL FUNCTION 'CONVERT_DATE_TO_INTERNAL'
+    EXPORTING
+      date_external            = iv_date
+    IMPORTING
+      date_internal            = ev_date
+    EXCEPTIONS
+      date_external_is_invalid = 1
+      OTHERS                   = 2.
+  IF sy-subrc <> 0.
+    ev_error = 'X'.
+    MESSAGE e142(/aif/error_handling) WITH iv_date.
+  ENDIF.
+ENDFORM.                    " F_ADJUST_CALENDAR_SELECTION
+
+*&---------------------------------------------------------------------*
+*&      Form  f_time_validation
+*&---------------------------------------------------------------------*
+FORM f_time_validation USING    iv_time  TYPE w3_qvalue
+                       CHANGING ev_error TYPE c
+                                ev_time  TYPE syuzeit.
+  CLEAR: ev_error.
+  CALL FUNCTION 'CONVERT_TIME_INPUT'
+    EXPORTING
+      input                     = iv_time
+    IMPORTING
+      output                    = ev_time
+    EXCEPTIONS
+      plausibility_check_failed = 1
+      wrong_format_in_input     = 2
+      OTHERS                    = 3.
+  IF sy-subrc <> 0.
+    ev_error = 'X'.
+    MESSAGE e320(/aif/error_handling) WITH iv_time.
+  ENDIF.
+ENDFORM.
+
+*&---------------------------------------------------------------------*
+*&      Form  f_number_validation
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->IV_NUMBER  text
+*      -->EV_ERROR   text
+*----------------------------------------------------------------------*
+FORM f_number_validation USING iv_number TYPE w3_qvalue
+                        CHANGING ev_error TYPE c
+                                 ev_maxerr TYPE i.
+  DATA lv_number TYPE string.
+  lv_number = iv_number.
+  CONDENSE lv_number NO-GAPS.
+  IF lv_number CO '0123456789'.
+    CLEAR ev_error.
+    ev_maxerr = iv_number.
+  ELSE.
+    ev_error = 'X'.
+    MESSAGE e234(/aif/mes) WITH lv_number.
+  ENDIF.
+ENDFORM.                    "f_number_validation
+*&---------------------------------------------------------------------*
+*&      Form  F_GET_VALUE_AND_CHECK
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->P_GC_PARA_MAXNR  text
+*      -->P_GV_MAX_0100  text
+*      <--P_LV_ERROR  text
+*----------------------------------------------------------------------*
+FORM f_get_value_and_check  USING    iv_para_maxnr TYPE char10 "#EC CALLED
+                            CHANGING cv_para_value
+                                     ev_error TYPE char1.
+  DATA: lv_begindt TYPE sydatum,
+        lv_enddt   TYPE sydatum,
+        lv_maxerr  TYPE i.
+
+  CLEAR ev_error.
+
+  CASE iv_para_maxnr.
+    WHEN gc_para_maxnr.
+      PERFORM f_number_validation USING gv_input_maxerr->value
+                                CHANGING ev_error
+                                         lv_maxerr.
+      IF ev_error IS INITIAL.
+        cv_para_value = lv_maxerr.
+      ENDIF.
+    WHEN gc_para_begindt.
+      PERFORM f_date_validation USING gv_input_begindt->value
+                                 CHANGING ev_error
+                                          lv_begindt.
+      IF ev_error IS INITIAL.
+        cv_para_value = lv_begindt.
+      ENDIF.
+    WHEN gc_para_enddt.
+      PERFORM f_date_validation USING gv_input_enddt->value
+                                 CHANGING ev_error
+                                          lv_enddt.
+      IF ev_error IS INITIAL.
+        cv_para_value = lv_enddt.
+      ENDIF.
+    WHEN OTHERS.
+  ENDCASE.
+ENDFORM.                    " F_GET_VALUE_AND_CHECK
+
+*&---------------------------------------------------------------------*
+*&      Form  f_display_summary
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->PT_NODES   text
+*----------------------------------------------------------------------*
+FORM f_display_summary USING pt_nodes TYPE salv_t_nodes.
+
+  DATA: ls_node       TYPE salv_s_nodes,
+        lref_data_row TYPE REF TO data.
+  DATA: lref_app_log_exception  TYPE REF TO cx_root.
+* Note 2324247 Advanced Message Summary
+  DATA: lr_adv_msg_sum TYPE REF TO object,
+        ls_parameter   TYPE abap_parmbind,
+        lt_parameters  TYPE abap_parmbind_tab,
+        ls_methode     TYPE tmdir.
+* End Note 2324247 Advanced Message Summary
+  FIELD-SYMBOLS: <ls_tree_data> TYPE /aif/tree_data.
+
+  REFRESH: gt_msg_output_0400.
+  CLEAR: gv_nr_data_msg_0400, gv_nr_appllog_msg_0400,
+        gv_ns_0400, gv_ifname_0400, gv_ifversion_0400.
+  TRY.
+      GET BADI gr_app_log_view_badi.
+    CATCH cx_root INTO lref_app_log_exception.
+      /aif/cl_transaction_handler=>add_exception_in_applog( lref_app_log_exception ).
+  ENDTRY.
+
+* Note 2228601
+  DATA: lt_keys_0102 TYPE /aif/key_data_tt,
+        ls_keys_0102 TYPE LINE OF /aif/key_data_tt,
+        ls_tree_data TYPE /aif/tree_data,
+        lt_tree_data TYPE TABLE OF /aif/tree_data.
+
+  lt_keys_0102 = gt_all_keys_0102.
+  DELETE ADJACENT DUPLICATES FROM lt_keys_0102 COMPARING ns ifname ifversion.
+
+  LOOP AT pt_nodes INTO ls_node.
+    lref_data_row =  ls_node-node->get_data_row( ).
+    ASSIGN lref_data_row->* TO <ls_tree_data>.
+    IF <ls_tree_data>-ifname IS INITIAL AND <ls_tree_data>-ifversion IS INITIAL.
+      gv_nr_data_msg_0400 = <ls_tree_data>-count_all.
+      LOOP AT lt_keys_0102 INTO ls_keys_0102 WHERE ns = <ls_tree_data>-ns.
+        <ls_tree_data>-ifname = ls_keys_0102-ifname.
+        <ls_tree_data>-ifversion = ls_keys_0102-ifversion.
+        <ls_tree_data>-is_techuser = ls_keys_0102-is_techuser.
+        PERFORM f_select_messages USING <ls_tree_data>.
+      ENDLOOP.
+    ELSE.
+      ADD <ls_tree_data>-count_all TO gv_nr_data_msg_0400.
+      APPEND <ls_tree_data> TO lt_tree_data.
+    ENDIF.
+  ENDLOOP.
+  IF NOT lt_tree_data IS INITIAL.
+* Note 2324247 Advanced Message Summary
+*set nsrecipient and recipient into output table
+    ls_parameter-name = 'CT_TREE_DATA'.
+    ls_parameter-kind = cl_abap_objectdescr=>changing.
+    GET REFERENCE OF lt_tree_data INTO ls_parameter-value.
+    INSERT ls_parameter INTO TABLE lt_parameters.
+
+    ls_methode-classname = '/AIF/CL_ADV_MSG_SUM_TOOL'.
+    ls_methode-methodname =  'DELETE_DUPLICATES'.
+    TRY.
+        CREATE OBJECT lr_adv_msg_sum TYPE (ls_methode-classname).
+        CALL METHOD lr_adv_msg_sum->(ls_methode-methodname)
+          PARAMETER-TABLE
+          lt_parameters.
+      CATCH cx_sy_dyn_call_error cx_sy_create_object_error.
+        SORT lt_tree_data BY ns ifname ifversion.
+        DELETE ADJACENT DUPLICATES FROM lt_tree_data COMPARING ns ifname ifversion.
+    ENDTRY.
+* End Note 2324247 Advanced Message Summary
+    LOOP AT lt_tree_data INTO ls_tree_data.
+      PERFORM f_select_messages USING ls_tree_data.
+    ENDLOOP.
+  ENDIF.
+* Note 2228601
+
+*   output result list
+  gv_max_0400 = gv_max_0100.
+  CALL SCREEN '0400'.
+  CASE gv_okcode_0400.
+    WHEN 'EXIT'.LEAVE TO SCREEN 0.
+    WHEN 'CANCEL'.LEAVE PROGRAM.
+    WHEN OTHERS.
+  ENDCASE.
+
+ENDFORM.                    "f_display_summary
+*&---------------------------------------------------------------------*
+*&      Form  F_USER_COMMAND_0400
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      <--P_GV_OKCODE_0400  text
+*----------------------------------------------------------------------*
+FORM f_user_command_0400  CHANGING pv_okcode TYPE sy-ucomm.
+  IF gr_app_log_view_badi IS BOUND.
+    CALL BADI gr_app_log_view_badi->clear_attributes.
+  ENDIF.
+  CASE pv_okcode.
+    WHEN 'BACK'.
+      CLEAR gv_init_0400.
+      CLEAR gr_alv_table_0400.
+      FREE gr_alv_table_0400.
+      CALL METHOD gr_alv_container_0400->free
+*        EXCEPTIONS
+*          cntl_error        = 1
+*          cntl_system_error = 2
+*          others            = 3
+              .
+      IF sy-subrc <> 0.
+*       MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*                  WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+      ENDIF.
+      CLEAR gr_alv_container_0400.
+      FREE gr_alv_container_0400.
+      CLEAR pv_okcode.
+      LEAVE TO SCREEN 0 .
+    WHEN 'EXIT'.
+      CLEAR gv_init_0400.
+      CLEAR gr_alv_table_0400.
+      FREE gr_alv_table_0400.
+      CALL METHOD gr_alv_container_0400->free
+*        EXCEPTIONS
+*          cntl_error        = 1
+*          cntl_system_error = 2
+*          others            = 3
+              .
+      IF sy-subrc <> 0.
+*       MESSAGE ID SY-MSGID TYPE SY-MSGTY NUMBER SY-MSGNO
+*                  WITH SY-MSGV1 SY-MSGV2 SY-MSGV3 SY-MSGV4.
+      ENDIF.
+      CLEAR gr_alv_container_0400.
+      FREE gr_alv_container_0400.
+      CLEAR pv_okcode.
+      LEAVE TO SCREEN 0.
+    WHEN 'CANCEL'.
+      LEAVE PROGRAM.
+    WHEN 'ERR'.
+    WHEN OTHERS.
+  ENDCASE.
+ENDFORM.                    " F_USER_COMMAND_0400
+
+
+*&---------------------------------------------------------------------*
+*&      Form  F_INIT_CONTROLS_0400
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f_init_controls_0400 .
+* Note 2324247 Advanced Message Summary
+  DATA: lr_adv_msg_sum TYPE REF TO object,
+
+        ls_parameter   TYPE abap_parmbind,
+        lt_parameters  TYPE abap_parmbind_tab,
+
+        ls_methode     TYPE tmdir.
+* End Note 2324247 Advanced Message Summary
+
+  IF gv_init_0400 IS INITIAL.
+    CREATE OBJECT gr_alv_container_0400
+      EXPORTING
+*       parent                      =
+        container_name              = 'CONTROL1'
+*       style                       =
+*       lifetime                    = lifetime_default
+*       repid                       =
+*       dynnr                       =
+*       no_autodef_progid_dynnr     =
+      EXCEPTIONS
+        cntl_error                  = 1
+        cntl_system_error           = 2
+        create_error                = 3
+        lifetime_error              = 4
+        lifetime_dynpro_dynpro_link = 5
+        OTHERS                      = 6.
+    IF sy-subrc <> 0.
+      MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+                 WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+    ENDIF.
+    TRY.
+        CALL METHOD cl_salv_table=>factory
+          EXPORTING
+            list_display   = if_salv_c_bool_sap=>false
+            container_name = 'CONTROL1'
+            r_container    = gr_alv_container_0400
+          IMPORTING
+            r_salv_table   = gr_alv_table_0400
+          CHANGING
+            t_table        = gt_msg_output_0400.
+      CATCH cx_salv_msg .                               "#EC NO_HANDLER
+    ENDTRY.
+* optimize column width
+    DATA: lr_columns TYPE REF TO cl_salv_columns_table.
+    lr_columns = gr_alv_table_0400->get_columns( ).
+    lr_columns->set_optimize( 'X' ).
+
+* define hotspot to click on
+    DATA: lr_column TYPE REF TO cl_salv_column_table.
+    TRY.
+        lr_column ?= lr_columns->get_column( 'ID' ).
+      CATCH cx_salv_not_found .                         "#EC NO_HANDLER
+    ENDTRY.
+    lr_column->set_cell_type( if_salv_c_cell_type=>hotspot ).
+
+*set component MSGGUIDS as technical, since it is a hashed table and cannot be displayed in alv grid
+    TRY.
+        lr_column ?= lr_columns->get_column( 'MSGGUIDS' ).
+      CATCH cx_salv_not_found .                         "#EC NO_HANDLER
+    ENDTRY.
+    CALL METHOD lr_column->set_technical
+      EXPORTING
+        value = if_salv_c_bool_sap=>true.
+
+* define ALV functions
+    DATA: lr_functions TYPE REF TO cl_salv_functions_list,
+          lv_text      TYPE string,
+          lv_tooltip   TYPE string.
+    lr_functions = gr_alv_table_0400->get_functions( ).
+    lr_functions->set_default( abap_true ).
+    lr_functions->set_group_subtotal( abap_false ).
+    lr_functions->set_group_subtotal( abap_false ).
+    lr_functions->set_group_aggregation( abap_false ).
+    lr_functions->set_group_export( abap_true ).
+
+    lv_text = TEXT-f01.
+    lv_tooltip = TEXT-f01.
+    TRY.
+        lr_functions->add_function(
+          EXPORTING
+            name     = 'RESTART'
+            icon     = '@15@'
+            text     = lv_text
+            tooltip  = lv_tooltip
+            position = if_salv_c_function_position=>right_of_salv_functions ).
+      CATCH cx_salv_existing cx_salv_wrong_call.        "#EC NO_HANDLER
+    ENDTRY.
+
+    lv_text = TEXT-f02.
+    lv_tooltip = TEXT-f02.
+    TRY.
+        lr_functions->add_function(
+          EXPORTING
+            name     = 'CANCEL'
+            icon     = '@3J@'
+            text     = lv_text
+            tooltip  = lv_tooltip
+            position = if_salv_c_function_position=>right_of_salv_functions ).
+      CATCH cx_salv_existing cx_salv_wrong_call.        "#EC NO_HANDLER
+    ENDTRY.
+
+    IF gr_app_log_view_badi IS BOUND.
+      CALL BADI gr_app_log_view_badi->set_settings_for_var_view
+        EXPORTING
+          ir_columns   = lr_columns
+          ir_functions = lr_functions.
+    ENDIF.
+
+
+* Note 2324247 Advanced Message Summary
+    ls_parameter-name = 'CR_FUNCTIONS'.
+    ls_parameter-kind = cl_abap_objectdescr=>changing.
+    GET REFERENCE OF lr_functions INTO ls_parameter-value.
+    INSERT ls_parameter INTO TABLE lt_parameters.
+
+    ls_methode-classname = '/AIF/CL_ADV_MSG_SUM_TOOL'.
+    ls_methode-methodname =  'ADD_ADV_MSG_SUM_BTN'.
+
+    TRY.
+        CREATE OBJECT lr_adv_msg_sum TYPE (ls_methode-classname).
+
+        CALL METHOD lr_adv_msg_sum->(ls_methode-methodname)
+          PARAMETER-TABLE
+          lt_parameters.
+
+      CATCH cx_sy_dyn_call_error cx_sy_create_object_error.
+*set component NSRECIP and RECIPIENT as technical
+        TRY.
+            lr_column ?= lr_columns->get_column( 'NSRECIP' ).
+          CATCH cx_salv_not_found .                     "#EC NO_HANDLER
+        ENDTRY.
+        CALL METHOD lr_column->set_technical
+          EXPORTING
+            value = if_salv_c_bool_sap=>true.
+
+        TRY.
+            lr_column ?= lr_columns->get_column( 'RECIPIENT' ).
+          CATCH cx_salv_not_found .                     "#EC NO_HANDLER
+        ENDTRY.
+        CALL METHOD lr_column->set_technical
+          EXPORTING
+            value = if_salv_c_bool_sap=>true.
+    ENDTRY.
+* End Note 2324247 Advanced Message Summary
+
+* set ALV layout
+    DATA: lr_layout     TYPE REF TO cl_salv_layout,
+          ls_layout_key TYPE salv_s_layout_key.
+    lr_layout = gr_alv_table_0400->get_layout( ).
+    ls_layout_key-report = sy-repid.
+    ls_layout_key-handle = sy-dynnr.
+    lr_layout->set_key( ls_layout_key ).
+    lr_layout->set_save_restriction( if_salv_c_layout=>restrict_none ).
+    lr_layout->set_default( abap_true ).
+
+* set striped pattern
+    DATA: lr_display_settings TYPE REF TO cl_salv_display_settings.
+    lr_display_settings = gr_alv_table_0400->get_display_settings( ).
+    lr_display_settings->set_striped_pattern( 'X' ).
+    DATA: lr_selections TYPE REF TO cl_salv_selections.
+    lr_selections = gr_alv_table_0400->get_selections( ).
+    lr_selections->set_selection_mode( if_salv_c_selection_mode=>cell ).
+    gr_alv_table_0400->display( ).
+
+* register to events
+    DATA: lr_events TYPE REF TO cl_salv_events_table.
+    lr_events = gr_alv_table_0400->get_event( ).
+    IF gr_event_handler_0400 IS INITIAL.
+      CREATE OBJECT gr_event_handler_0400.
+    ENDIF.
+    SET HANDLER gr_event_handler_0400->on_double_click FOR lr_events.
+    SET HANDLER gr_event_handler_0400->on_link_click FOR lr_events.
+    SET HANDLER gr_event_handler_0400->on_added_function FOR lr_events.
+
+
+    gv_init_0400 = 'X'.
+  ELSE.
+    IF gr_app_log_view_badi IS BOUND.
+      CALL BADI gr_app_log_view_badi->set_normal_layout
+        EXPORTING
+          ir_alv_table_0400 = gr_alv_table_0400.
+    ENDIF.
+    gr_alv_table_0400->refresh( ).
+  ENDIF.
+
+
+
+ENDFORM.                    " F_INIT_CONTROLS_0400
+FORM f_date_validation_more USING    iv_date_from TYPE sydatum
+                                     iv_date_to   TYPE sydatum
+                                     iv_time_from TYPE syuzeit
+                                     iv_time_to   TYPE syuzeit
+                            CHANGING ev_error     TYPE c.
+  IF iv_date_from > iv_date_to AND iv_date_to IS NOT INITIAL.
+    ev_error = 'X'.
+    MESSAGE s266(/aif/error_handling) WITH iv_date_from iv_date_to DISPLAY LIKE 'E'.
+  ELSEIF iv_date_from = iv_date_to.
+    IF iv_time_from > iv_time_to.
+      ev_error = 'X'.
+      MESSAGE s210(/aif/error_handling) DISPLAY LIKE 'E'.
+    ENDIF.
+  ENDIF.
+ENDFORM.
+FORM f_select_messages USING p_data_tree TYPE /aif/tree_data
+                             .
+  TYPES: BEGIN OF msg_data,
+           logsys   TYPE /aif/logsys,
+           msg      TYPE bal_s_msg,
+           counter  TYPE i,
+           msgguids TYPE /aif/guid32_ht,
+         END OF msg_data,
+         BEGIN OF lty_ifkey,
+           ns        TYPE /aif/ns,
+           ifname    TYPE /aif/ifname,
+           ifversion TYPE /aif/ifversion,
+         END OF lty_ifkey.
+
+  DATA: ls_msg_output       TYPE /aif/msg_summary_st,
+        ls_msg_data         TYPE msg_data,
+        lt_msg_data_wt      TYPE HASHED TABLE OF msg_data WITH UNIQUE KEY logsys msg-msgty msg-msgid msg-msgno,
+        lv_where            TYPE string,
+        lv_cnt_msg          TYPE i,
+        lt_mmsg_idx         TYPE TABLE OF /aif/t_mmsg_idx,
+        lt_mmsg_idx_tmp     TYPE TABLE OF /aif/t_mmsg_idx,
+        lt_msg_logsys       TYPE /aif/msg_logsys_ht,
+        lt_msgguid          TYPE /aif/t_guid32,
+        lt_ifkey            TYPE TABLE OF lty_ifkey,
+        ls_ifkey            TYPE lty_ifkey,
+        ls_mmsg_idx         TYPE /aif/t_mmsg_idx,
+        ls_msg_logsys       TYPE /aif/msg_logsys_s,
+        ls_data_tree        TYPE /aif/tree_data,
+        lv_msgno            TYPE symsgno,
+        lref_msg_txt_modify TYPE REF TO /aif/msg_txt_modify,
+        lv_msgtxt           TYPE string,
+        lr_badi_msg_logsys  TYPE REF TO /aif/msg_logsys.
+
+  FIELD-SYMBOLS: <ls_tree_data> TYPE /aif/tree_data,
+                 <ls_msg_data>  TYPE msg_data,
+                 <ls_mmsg_idx>  TYPE /aif/t_mmsg_idx.
+
+* Data base access DBA
+  DATA: lr_dba_mgr  TYPE REF TO /aif/cl_dba_reader_mgr,
+        lr_dba_finf TYPE REF TO /aif/if_dba_finf,
+        ls_finf_out TYPE /aif/t_finf,
+        ls_finf     TYPE /aif/t_finf,
+        lt_finf     TYPE TABLE OF /aif/t_finf.
+
+  DATA: ls_msg_sum_by_recipient LIKE LINE OF gt_all_keys_0102,
+        lv_from TYPE string VALUE '/aif/t_mmsg_idx',
+        lv_recipient_depend TYPE c VALUE 'X'. "Note 2633116
+
+  DATA: lv_dfrom        TYPE sydatum,
+        lv_dto          TYPE sydatum,
+        lv_tfrom        TYPE syuzeit,
+        lv_tto          TYPE syuzeit.
+
+  DATA: lv_is_displayed TYPE /aif/boolean.
+
+        get         BADI lref_msg_txt_modify.
+
+* Begin Note 2633116
+  IF p_data_tree-recipient IS INITIAL "User selects at namespace or interface level, need to loop each recipient assigned
+    AND lv_recipient_depend = abap_true.
+    LOOP AT gt_all_keys_0102 INTO ls_msg_sum_by_recipient
+      WHERE ns = p_data_tree-ns
+        AND ifname = p_data_tree-ifname
+        AND ifversion = p_data_tree-ifversion
+        AND recipient IS NOT INITIAL
+        .
+      MOVE-CORRESPONDING ls_msg_sum_by_recipient TO ls_data_tree.
+      ls_data_tree-nsrecipient = ls_msg_sum_by_recipient-nsrecipient.
+      ls_data_tree-recipient = ls_msg_sum_by_recipient-recipient.
+      PERFORM f_select_messages USING ls_data_tree.
+    ENDLOOP.
+  ELSE.
+* End Note 2633116
+    ASSIGN ls_data_tree TO <ls_tree_data>.
+    <ls_tree_data> = p_data_tree.
+
+*  set ns, ifname and ifversion into output table
+    ls_msg_output-ns = <ls_tree_data>-ns.
+    ls_msg_output-ifname = <ls_tree_data>-ifname.
+    ls_msg_output-ifversion = <ls_tree_data>-ifversion.
+
+    IF gv_ns_0400 IS INITIAL.
+      gv_ns_0400 = <ls_tree_data>-ns.
+    ELSEIF gv_ns_0400 <> <ls_tree_data>-ns.
+      gv_ns_0400 = '*'.
+    ENDIF.
+    IF gv_ifname_0400 IS INITIAL.
+      gv_ifname_0400 = <ls_tree_data>-ifname.
+    ELSEIF gv_ifname_0400 <> <ls_tree_data>-ifname.
+      gv_ifname_0400 = '*'.
+    ENDIF.
+    IF gv_ifversion_0400 IS INITIAL.
+      gv_ifversion_0400 = <ls_tree_data>-ifversion.
+    ELSEIF gv_ifversion_0400 <> <ls_tree_data>-ifversion.
+      gv_ifversion_0400 = '*'.
+    ENDIF.
+
+*   determine interfaces
+
+*   get instance of interface class
+    lr_dba_mgr = /aif/cl_dba_reader_mgr=>get_instance( ).
+    lr_dba_finf   = lr_dba_mgr->get_dba_finf( ).
+*   set the fields for reading
+    ls_finf_out-ns = <ls_tree_data>-ns.
+    ls_finf_out-ifname = <ls_tree_data>-ifname.
+    ls_finf_out-ifversion = <ls_tree_data>-ifversion.
+*   read the interface from the data base
+    TRY.
+        lt_finf = lr_dba_finf->read_table( ls_finf_out ).
+      CATCH /aif/cx_dba_reader." do noting
+    ENDTRY.
+*   put the data in the specific keytab
+    LOOP AT lt_finf INTO ls_finf.
+      ls_ifkey-ns = ls_finf-ns.
+      ls_ifkey-ifname = ls_finf-ifname.
+      ls_ifkey-ifversion = ls_finf-ifversion.
+      APPEND ls_ifkey TO lt_ifkey.
+    ENDLOOP.
+
+*   read msg index table records one interface at a time
+    LOOP AT lt_ifkey INTO ls_ifkey.
+
+      AT FIRST.
+*   compose where clause
+        IF <ls_tree_data>-is_techuser = 'X'.
+          IF gv_only_errors_0100 IS INITIAL.
+            lv_where = 'ns = ls_ifkey-ns AND ifname = ls_ifkey-ifname AND ifver = ls_ifkey-ifversion'. "#EC NOTEXT
+          ELSE.
+            lv_where = 'ns = ls_ifkey-ns AND ifname = ls_ifkey-ifname AND ifver = ls_ifkey-ifversion AND ( status = ''E'' OR status = ''A'' OR status = ''I'' )'. "#EC NOTEXT
+          ENDIF.
+        ELSE.
+          IF gv_only_errors_0100 IS INITIAL.
+            lv_where = 'ns = ls_ifkey-ns AND ifname = ls_ifkey-ifname AND ifver = ls_ifkey-ifversion AND status <> ''A'''. "#EC NOTEXT
+          ELSE.
+            lv_where = 'ns = ls_ifkey-ns AND ifname = ls_ifkey-ifname AND ifver = ls_ifkey-ifversion AND ( status = ''E'' OR status = ''I'' )'. "#EC NOTEXT
+          ENDIF.
+        ENDIF.
+
+        IF NOT gv_select_dates_0100 IS INITIAL.
+          lv_dfrom = gv_date_begin_0100.
+          lv_dto = gv_date_end_0100..
+          lv_tfrom = gv_time_begin_0100.
+          lv_tto = gv_time_end_0100.
+          DATA lv_string TYPE string.
+          IF lv_dfrom EQ lv_dto.
+            lv_string = 'create_date EQ lv_dfrom AND create_time GE lv_tfrom AND create_time LE lv_tto'.
+          ELSEIF lv_dfrom LT lv_dto.
+            lv_string =  '( ( create_date EQ lv_dfrom AND create_time GE lv_tfrom )' && ` `
+                         && 'OR ( create_date GT lv_dfrom AND create_date LT lv_dto )' && ` `
+                         && 'OR ( create_date EQ lv_dto AND create_time LE lv_tto ) )'.
+          ENDIF.
+          IF NOT lv_string IS INITIAL.
+            CONCATENATE lv_where 'AND' lv_string INTO lv_where SEPARATED BY space.
+          ENDIF.
+        ENDIF.
+
+      ENDAT.
+
+*     Begin Note 2633116
+*     count only the recipient-specific data
+      IF lv_recipient_depend = abap_true.
+        REPLACE ALL OCCURRENCES OF  'ns = ' IN lv_where WITH 'a~ns = ' IGNORING CASE. "#EC NOTEXT
+        REPLACE ALL OCCURRENCES OF  'ifname = ' IN lv_where WITH 'a~ifname = '  IGNORING CASE. "#EC NOTEXT
+        REPLACE ALL OCCURRENCES OF  'ifver = ' IN lv_where WITH 'a~ifver = '  IGNORING CASE. "#EC NOTEXT
+        REPLACE ALL OCCURRENCES OF  'status ' IN lv_where WITH 'a~status '  IGNORING CASE. "#EC NOTEXT
+        REPLACE ALL OCCURRENCES OF  'create_date ' IN lv_where WITH 'a~create_date '  IGNORING CASE. "#EC NOTEXT
+        REPLACE ALL OCCURRENCES OF  'create_time ' IN lv_where WITH 'a~create_time '  IGNORING CASE. "#EC NOTEXT
+        CONCATENATE lv_where ' and b~nsrecip = <ls_tree_data>-nsrecipient and b~recipient = <ls_tree_data>-recipient' INTO lv_where. "#EC NOTEXT
+        lv_from = '/aif/t_mmsg_idx as a INNER JOIN /aif/alert_idx as b ON a~msgguid = b~msgguid'. "#EC NOTEXT
+      ENDIF.
+*     End Note 2633116
+
+*   select from msg index table
+      CLEAR: lt_mmsg_idx, lt_mmsg_idx_tmp.
+
+      SELECT * INTO CORRESPONDING FIELDS OF TABLE lt_mmsg_idx "Note 2633116
+        FROM (lv_from) "Note 2633116
+        PACKAGE SIZE 5000
+        WHERE (lv_where).                              "#EC CI_SEL_NESTED
+
+*   read logic system from single index table
+        lt_mmsg_idx_tmp = lt_mmsg_idx.
+        SORT lt_mmsg_idx_tmp BY msgguid.
+        DELETE ADJACENT DUPLICATES FROM lt_mmsg_idx_tmp COMPARING msgguid.
+
+        CLEAR: lt_msgguid, lt_msg_logsys.
+        LOOP AT lt_mmsg_idx_tmp INTO ls_mmsg_idx.
+          APPEND ls_mmsg_idx-msgguid TO lt_msgguid.
+        ENDLOOP.
+
+        lt_msg_logsys = /aif/cl_msg_txt_helper=>get_msg_logsys_mass(
+                                    iv_ns      = ls_ifkey-ns
+                                    iv_ifname  = ls_ifkey-ifname
+                                    iv_ifver   = ls_ifkey-ifversion
+                                    it_msgguid = lt_msgguid         ).
+
+        IF lt_msg_logsys IS INITIAL.
+          TRY.
+            GET BADI lr_badi_msg_logsys.
+            IF lr_badi_msg_logsys IS BOUND.
+
+              CALL BADI lr_badi_msg_logsys->get_msg_logsys
+                EXPORTING
+                  iv_ns      = ls_ifkey-ns
+                  iv_ifname  = ls_ifkey-ifname
+                  iv_ifver   = ls_ifkey-ifversion
+                  it_msgguid = lt_msgguid
+                RECEIVING
+                  rt_logsys  = lt_msg_logsys.
+            ENDIF.
+
+          CATCH cx_root.                                    "#EC NO_HANDLER
+*             Ensure the exception from BADI implementation will NOT stop the normal processing
+          ENDTRY.
+        ENDIF.
+
+        LOOP AT lt_mmsg_idx ASSIGNING <ls_mmsg_idx>.       "#EC CI_NESTED
+          IF gr_app_log_view_badi IS BOUND.
+            CALL BADI gr_app_log_view_badi->store_guids_and_lognum
+              EXPORTING
+                is_mmsg_idx = <ls_mmsg_idx>.
+          ENDIF.
+
+          CLEAR ls_msg_logsys.
+          READ TABLE lt_msg_logsys INTO ls_msg_logsys
+               WITH TABLE KEY msgguid = <ls_mmsg_idx>-msgguid.
+
+          READ TABLE lt_msg_data_wt ASSIGNING <ls_msg_data>
+               WITH TABLE KEY logsys    = ls_msg_logsys-logsys
+                            msg-msgty = <ls_mmsg_idx>-msgty
+                            msg-msgid = <ls_mmsg_idx>-msgid
+                            msg-msgno = <ls_mmsg_idx>-msgno.
+          IF sy-subrc = 0.
+            IF <ls_mmsg_idx>-msgcount = 0.
+              ADD 1 TO <ls_msg_data>-counter.
+            ELSE.
+              ADD <ls_mmsg_idx>-msgcount TO <ls_msg_data>-counter.
+            ENDIF.
+            IF <ls_msg_data>-msg-msgty IS INITIAL AND NOT <ls_mmsg_idx>-msgty IS INITIAL.
+              <ls_msg_data>-msg-msgty = <ls_mmsg_idx>-msgty.
+            ENDIF.
+            INSERT <ls_mmsg_idx>-msgguid INTO TABLE <ls_msg_data>-msgguids.
+          ELSE.
+            CLEAR: ls_msg_data.
+            IF <ls_mmsg_idx>-msgcount = 0.
+              ls_msg_data-counter = 1.
+            ELSE.
+              ls_msg_data-counter = <ls_mmsg_idx>-msgcount.
+            ENDIF.
+            ls_msg_data-logsys    = ls_msg_logsys-logsys.
+            ls_msg_data-msg-msgty = <ls_mmsg_idx>-msgty.
+            ls_msg_data-msg-msgid = <ls_mmsg_idx>-msgid.
+            ls_msg_data-msg-msgno = <ls_mmsg_idx>-msgno.
+            INSERT <ls_mmsg_idx>-msgguid INTO TABLE ls_msg_data-msgguids.
+            INSERT ls_msg_data INTO TABLE lt_msg_data_wt.
+          ENDIF.
+          lv_cnt_msg = lv_cnt_msg + 1.
+          ADD 1 TO gv_nr_appllog_msg_0400.
+        ENDLOOP.
+
+*   update progress bar
+        CALL FUNCTION 'PROGRESS_INDICATOR'
+          EXPORTING
+            i_text               = TEXT-p02
+            i_msgv1              = lv_cnt_msg
+            i_output_immediately = 'X'.
+
+      ENDSELECT.
+
+    ENDLOOP.
+
+*   sort descending by counter
+    SORT lt_msg_data_wt DESCENDING BY counter.
+
+*  convert to output structure with counter, type, MSGID, MSGNO and MESSAGE
+    LOOP AT lt_msg_data_wt ASSIGNING <ls_msg_data>.        "#EC CI_NESTED
+      ls_msg_output-appllogcounter = <ls_msg_data>-counter.
+      ls_msg_output-logsys = <ls_msg_data>-logsys.
+      ls_msg_output-type = <ls_msg_data>-msg-msgty.
+      ls_msg_output-id = <ls_msg_data>-msg-msgid.
+      ls_msg_output-number = <ls_msg_data>-msg-msgno.
+      ls_msg_output-msgguids = <ls_msg_data>-msgguids.
+      DESCRIBE TABLE ls_msg_output-msgguids LINES ls_msg_output-msgcounter.
+      lv_msgno = ls_msg_output-number.
+      IF lref_msg_txt_modify IS BOUND.
+        CLEAR lv_msgtxt.
+        CALL BADI lref_msg_txt_modify->exit_external_read_common
+          EXPORTING
+            iv_namespace = ls_msg_output-ns
+            iv_ifname    = ls_msg_output-ifname
+            iv_ifversion = ls_msg_output-ifversion
+            iv_msgid     = ls_msg_output-id
+            iv_msgno     = lv_msgno
+            iv_msgvar1   = '$1'
+            iv_msgvar2   = '$2'
+            iv_msgvar3   = '$3'
+            iv_msgvar4   = '$4'
+          CHANGING
+            cv_msgtxt    = lv_msgtxt.
+        ls_msg_output-message = lv_msgtxt.
+      ELSE.
+        CALL METHOD /aif/cl_msg_txt_helper=>get_msg_txt
+          EXPORTING
+            iv_ns      = ls_msg_output-ns
+            iv_ifname  = ls_msg_output-ifname
+            iv_ifver   = ls_msg_output-ifversion
+            iv_logsys  = ls_msg_output-logsys
+            iv_msgid   = ls_msg_output-id
+            iv_msgno   = lv_msgno
+            iv_msgvar1 = '$1'
+            iv_msgvar2 = '$2'
+            iv_msgvar3 = '$3'
+            iv_msgvar4 = '$4'
+          RECEIVING
+            rv_text    = lv_msgtxt.
+        ls_msg_output-message = lv_msgtxt.
+      ENDIF.
+      CASE ls_msg_output-type.
+        WHEN 'E'.
+          CONCATENATE  '@5C\Q'                                "#EC NOTEXT
+                       'Application Error'                    "#EC NOTEXT
+                       '@'                                    "#EC NOTEXT
+                  INTO ls_msg_output-icon.
+        WHEN 'A'.
+          CONCATENATE  '@5C\Q'                                "#EC NOTEXT
+                       'Technical Error'                      "#EC NOTEXT
+                       '@'                                    "#EC NOTEXT
+                  INTO ls_msg_output-icon.
+        WHEN 'S'.
+          CONCATENATE  '@5B\Q'                                "#EC NOTEXT
+                       'Success'                              "#EC NOTEXT
+                       '@'                                    "#EC NOTEXT
+                  INTO ls_msg_output-icon.
+        WHEN 'I'.
+          CONCATENATE  '@5B\Q'                                "#EC NOTEXT
+                       'Information'                          "#EC NOTEXT
+                       '@'                                    "#EC NOTEXT
+                  INTO ls_msg_output-icon.
+        WHEN 'W'.
+          CONCATENATE  '@5D\Q'                                "#EC NOTEXT
+                       'Warning'                              "#EC NOTEXT
+                       '@'                                    "#EC NOTEXT
+                  INTO ls_msg_output-icon.
+        WHEN OTHERS.
+          CONCATENATE  '@BZ\Q'                                "#EC NOTEXT
+                       'Others'                               "#EC NOTEXT
+                       '@'                                    "#EC NOTEXT
+                  INTO ls_msg_output-icon.
+      ENDCASE.
+*     Begin Note 2633116
+      ls_msg_output-nsrecip = <ls_tree_data>-nsrecipient.
+      ls_msg_output-recipient = <ls_tree_data>-recipient.
+*     End Note 2633116
+*     Call BADI to determine if current entry should be displayed
+      lv_is_displayed = abap_true.
+      IF gr_app_log_view_badi IS BOUND.
+        CALL BADI gr_app_log_view_badi->is_entry_displayed
+          EXPORTING
+            is_msg_data = ls_msg_output
+          CHANGING
+            cv_is_displayed = lv_is_displayed.
+      ENDIF.
+      IF lv_is_displayed = abap_true.
+        APPEND ls_msg_output TO gt_msg_output_0400.
+      ENDIF.
+    ENDLOOP.
+    REFRESH: lt_msg_data_wt.
+  ENDIF. "Note 2633116
+ENDFORM.

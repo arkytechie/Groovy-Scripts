@@ -1,0 +1,56 @@
+*----------------------------------------------------------------------*
+***INCLUDE /AIF/ERR_OVERVIEW_FILL_F04 .
+*----------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Form  FILL_TEXTS_0400
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM fill_texts_0400 .
+
+* DBS Namespace
+  DATA: lr_dba_mgr   TYPE REF TO /aif/cl_dba_reader_mgr,
+        lr_dba_ns    TYPE REF TO /aif/if_dba_ns,
+        ls_nst_out   TYPE /aif/t_nst,
+        lt_nst       TYPE /aif/t_nst_tt,
+        ls_nst       TYPE /aif/t_nst,
+        lr_dba_finf  TYPE REF TO /aif/if_dba_finf,
+        ls_finft_out TYPE /aif/t_finft,
+        lt_finft     TYPE /aif/tt_finft,
+        ls_finft     TYPE /aif/t_finft.
+
+  CLEAR: gv_ns_txt_0400, gv_ifname_txt_0400.
+
+  ls_nst_out-ns = gv_ns_0400.
+* create the manager object and get the DBA-instances
+  lr_dba_mgr = /aif/cl_dba_reader_mgr=>get_instance( ).
+  lr_dba_ns   = lr_dba_mgr->get_dba_ns( ).
+  lr_dba_finf = lr_dba_mgr->get_dba_finf( ).
+
+* read all textes from the text table
+  TRY.
+      ls_nst = lr_dba_ns->read_text_by_different_langu( ls_nst_out ).
+    CATCH /aif/cx_dba_reader. " do noting
+  ENDTRY.
+  IF ls_nst IS NOT INITIAL.
+    gv_ns_txt_0400 = ls_nst-nstx.
+  ENDIF.
+
+* set the fields for reading
+  ls_finft_out-ns = gv_ns_0400.
+  ls_finft_out-ifname = gv_ifname_0400.
+  ls_finft_out-ifversion = gv_ifversion_0400.
+* read the interface from the data base
+  TRY.
+      ls_finft = lr_dba_finf->read_text_by_different_langu( ls_finft_out ).
+    CATCH /aif/cx_dba_reader. " do noting
+  ENDTRY.
+
+  IF ls_finft IS NOT INITIAL.
+    gv_ifname_txt_0400 = ls_finft-ifdesc.
+  ENDIF.
+
+ENDFORM.                    " FILL_TEXTS_0400

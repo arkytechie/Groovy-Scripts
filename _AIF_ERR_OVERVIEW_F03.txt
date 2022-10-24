@@ -1,0 +1,521 @@
+*&---------------------------------------------------------------------*
+*&  Include           /AIF/ERR_OVERVIEW_F03
+*&---------------------------------------------------------------------*
+*&---------------------------------------------------------------------*
+*&      Form  f_init_control_0100_NEW
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM f_init_control_0100_new .
+  DATA lr_ui_facade TYPE REF TO /aif/if_ui_facade.
+  DATA lv_num_if TYPE i.
+  DATA lv_license TYPE abap_bool.
+  DATA lv_trail TYPE abap_bool.
+  DATA lv_days_left TYPE i.
+  DATA lr_liense_check TYPE REF TO /aif/cl_license_check.
+  IF gv_first_display = abap_true.
+    CLEAR gv_cust_if.
+    CREATE OBJECT lr_ui_facade TYPE /aif/cl_ui_facade_sapgui.
+    /aif/cl_moni_job_manager=>set_ui_facade( lr_ui_facade ).
+    PERFORM get_default_begin CHANGING gv_date_begin_0100. "Note 2137806
+* set default values
+    IF /aif/cl_encapsulation_manager=>is_visible_to_user( '53' ) = abap_true.
+      gv_select_dates_0100 = 'X'.
+      gv_date_begin_0100 = sy-datum.
+      gv_date_end_0100 = sy-datum.
+    ENDIF.
+    IF gr_handler IS INITIAL.
+      CREATE OBJECT gr_handler.
+    ENDIF.
+    PERFORM f_create_splitter_container.
+*    PERFORM f_create_splitter2_container.
+*<<<Begin of Note 2724928
+    IF gs_im_layout_buf is INITIAL.
+      PERFORM f_get_init_layout CHANGING gs_im_layout_buf.
+    ENDIF.
+*<<<End of Note 2724928
+    PERFORM f_create_image.
+    PERFORM f_create_selection_criteria.
+
+    PERFORM f_adjust_splitter_size USING abap_true."Note 2724928
+*    PERFORM f_create_image.
+*    PERFORM f_create_selection_criteria.
+*    PERFORM f_create_calendar.
+    PERFORM f_create_tree_control.
+    PERFORM f_update_tree_0100.
+    PERFORM f_create_calendar.
+    CLEAR gv_first_display.
+    CREATE OBJECT lr_liense_check .
+    CALL METHOD lr_liense_check->check_license
+      IMPORTING
+        ev_success             = lv_license
+        ev_days_left           = lv_days_left
+        ev_trial_period_active = lv_trail
+        ev_num_if              = lv_num_if.
+
+    IF lv_license = abap_false.
+      IF gv_cust_if = abap_true.
+       IF lv_num_if >= 0.
+         IF lv_trail = abap_true.
+           IF lv_days_left > 0.
+             MESSAGE w001(/aif/sys_message) WITH lv_num_if lv_days_left  DISPLAY LIKE 'W'.
+           ELSE.
+             MESSAGE w002(/aif/sys_message) WITH lv_num_if DISPLAY LIKE 'W'.
+           ENDIF.
+         ELSE.
+           MESSAGE w007(/aif/sys_message) WITH lv_num_if DISPLAY LIKE 'W'.
+         ENDIF.
+       ENDIF.
+      ENDIF.
+    ENDIF.
+  ENDIF.
+ENDFORM.                    "f_init_control_0100_NEW
+
+*&---------------------------------------------------------------------*
+*&      Form  f_create_splitter_container
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM f_create_splitter_container.
+
+** main container
+  CHECK gr_container_main IS INITIAL.
+  CREATE OBJECT gr_container_main
+    EXPORTING
+      container_name              = 'MAIN_CUSTOM'
+    EXCEPTIONS
+      cntl_error                  = 1
+      cntl_system_error           = 2
+      create_error                = 3
+      lifetime_error              = 4
+      lifetime_dynpro_dynpro_link = 5
+      OTHERS                      = 6.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+               WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+* main splitter
+    CREATE OBJECT gr_main_splitter
+      EXPORTING
+        parent            = gr_container_main
+        rows              = 1
+        columns           = 1
+      EXCEPTIONS
+        cntl_error        = 1
+        cntl_system_error = 2
+        OTHERS            = 3.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+               WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+* upper container splitter
+  CALL METHOD gr_main_splitter->get_container
+    EXPORTING
+      row       = 1
+      column    = 1
+    RECEIVING
+      container = gr_upper_container.
+
+  CREATE OBJECT gr_splitter_upper
+    EXPORTING
+      parent            = gr_upper_container
+      rows              = 1
+      columns           = 2
+    EXCEPTIONS
+      cntl_error        = 1
+      cntl_system_error = 2
+      OTHERS            = 3.
+
+  CALL METHOD gr_splitter_upper->get_container
+    EXPORTING
+      row       = 1
+      column    = 1
+    RECEIVING
+      container = gr_left.
+
+  CHECK gr_left IS NOT INITIAL.
+  CREATE OBJECT gr_splitter_left
+    EXPORTING
+      parent            = gr_left
+      rows              = 3
+      columns           = 1
+    EXCEPTIONS
+      cntl_error        = 1
+      cntl_system_error = 2
+      OTHERS            = 3.
+
+
+
+
+
+ENDFORM.                    "f_create_splitter_container
+
+*&---------------------------------------------------------------------*
+*&      Form  f_create_image
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM f_create_image.
+
+
+* display image
+  DATA: l_alignment     TYPE i,
+        l_url           TYPE cndp_url,
+        l_objid         TYPE w3objid,
+        lref_err_app    TYPE REF TO /aif/cl_db_access_err_app,
+        ls_err_app      TYPE /aif/t_err_app.
+  CALL METHOD gr_splitter_left->get_container
+    EXPORTING
+      row       = 1
+      column    = 1
+    RECEIVING
+      container = gr_top.
+  lref_err_app = /aif/cl_db_access_err_app=>get_instance( ).
+  TRY.
+      ls_err_app = lref_err_app->read_single( 'AIF' ).
+      l_objid = ls_err_app-ow_pic.
+    CATCH /aif/cx_error_handling_general .              "#EC NO_HANDLER
+  ENDTRY.
+
+  CALL FUNCTION 'DP_PUBLISH_WWW_URL'
+    EXPORTING
+      objid                 = l_objid
+      lifetime              = cndp_lifetime_transaction
+    IMPORTING
+      url                   = l_url
+    EXCEPTIONS
+      dp_invalid_parameters = 1
+      no_object             = 2
+      dp_error_publish      = 3
+      OTHERS                = 4.
+  IF sy-subrc <> 0.
+*    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+*               WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+    MESSAGE w108(/aif/ui).
+*    MESSAGE e045(/aif/ui) DISPLAY LIKE 'I'.
+  ENDIF.
+
+  CREATE OBJECT gr_picture_0100
+    EXPORTING
+      parent = gr_top
+    EXCEPTIONS
+      OTHERS = 1.
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+               WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+  l_alignment = cl_gui_control=>align_at_left   +
+                cl_gui_control=>align_at_right  +
+                cl_gui_control=>align_at_top    +
+                cl_gui_control=>align_at_bottom.
+  CALL METHOD gr_picture_0100->set_alignment
+    EXPORTING
+      alignment = l_alignment.
+
+  CALL METHOD gr_picture_0100->set_display_mode
+    EXPORTING
+      display_mode = cl_gui_picture=>display_mode_fit.
+  CALL METHOD gr_picture_0100->load_picture_from_url_async
+    EXPORTING
+      url = l_url.
+ENDFORM.                    "f_create_image
+
+
+
+*&---------------------------------------------------------------------*
+*&      Form  f_create_calendar
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+FORM f_create_calendar.
+  DATA: lv_view_style      TYPE i,
+        lv_selection_style TYPE i,
+        lv_date_begin      TYPE cnca_utc_date,
+        lv_date_end        TYPE cnca_utc_date,
+        lt_events          TYPE cntl_simple_events,
+        ls_event           TYPE cntl_simple_event.
+
+  CHECK gr_calendar_0100 IS INITIAL.
+
+
+  CALL METHOD gr_splitter_left->get_container
+    EXPORTING
+      row       = 3
+      column    = 1
+    RECEIVING
+      container = gr_bottom.
+
+  lv_view_style = cnca_style_h_navigator + cnca_style_alignment_fit.
+  lv_selection_style = cnca_sel_day + cnca_sel_week + cnca_sel_month + cnca_sel_interval.
+
+  CREATE OBJECT gr_calendar_0100
+    EXPORTING
+     parent             = gr_bottom
+     view_style         = lv_view_style"cnca_style_h_navigator
+*      dtpicker_format    =
+     selection_style    = lv_selection_style "cnca_sel_interval
+*      display_months     = 3
+*      focus_date         =
+*      stand_alone        =
+*      week_begin_day     = 1
+*      lifetime           = lifetime_default
+*      shellstyle         =
+*      year_begin         = 0
+*      year_end           = 0
+*      week_end           = '67'
+*      name               =
+*      cell_text_length   = 0
+ EXCEPTIONS
+   cntl_error         = 1
+   cntl_install_error = 2
+   cntl_version_error = 3
+   OTHERS             = 4
+   .
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+               WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+
+  IF /aif/cl_encapsulation_manager=>is_visible_to_user( '53' ) = abap_false.
+    PERFORM get_default_begin CHANGING gv_date_begin_0100. "Note 2137806
+  ENDIF.
+  lv_date_begin = gv_date_begin_0100.
+  lv_date_end = gv_date_end_0100.
+
+  CALL METHOD gr_calendar_0100->set_selection
+    EXPORTING
+      date_begin      = lv_date_begin
+      date_end        = lv_date_end
+*      selection_table =
+*      no_scroll       = ' '
+    EXCEPTIONS
+      cntl_error      = 1
+      OTHERS          = 2
+          .
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+               WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ENDIF.
+
+  REFRESH: lt_events.
+  ls_event-eventid = cl_gui_calendar=>m_id_date_selected.
+  ls_event-appl_event = 'X'.
+  APPEND ls_event TO lt_events.
+
+  gr_calendar_0100->set_registered_events( events = lt_events ).
+  SET HANDLER gr_handler->on_date_selected FOR gr_calendar_0100.
+  PERFORM f_set_date_color.
+ENDFORM.                    "f_create_calendar
+*&---------------------------------------------------------------------*
+*&      Form  SET_DATE_COLOR
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*  -->  p1        text
+*  <--  p2        text
+*----------------------------------------------------------------------*
+FORM f_set_date_color .
+  DATA: lref_calendar_color_tooltip TYPE REF TO  /aif/calendar_color_tooltip,
+        lt_date_info TYPE cnca_itab_day_info,
+        ls_date_info TYPE cnca_day_info,
+        lv_date_begin TYPE cnca_utc_date,
+        lv_date_from TYPE /aif/date_from,
+        lv_date_end TYPE cnca_utc_date,
+        lv_execute  TYPE char1.
+
+  DATA lv_calendarrng_value TYPE char10.
+  DATA lv_calendarrng TYPE i.
+  DATA lt_parameters   TYPE STANDARD TABLE OF bapiparam.
+  DATA lt_return       TYPE STANDARD TABLE OF bapiret2.
+
+  gr_calendar_0100->get_selection(
+    IMPORTING
+      date_begin      = lv_date_begin
+      date_end        = lv_date_end
+*    selection_table =
+    EXCEPTIONS
+      cntl_error      = 1
+      OTHERS          = 2 )
+          .
+  IF sy-subrc <> 0.
+    MESSAGE ID sy-msgid TYPE sy-msgty NUMBER sy-msgno
+               WITH sy-msgv1 sy-msgv2 sy-msgv3 sy-msgv4.
+  ELSE.
+    "Get all parameter from SU3
+    CALL FUNCTION 'BAPI_USER_GET_DETAIL'
+      EXPORTING
+        username  = sy-uname
+      TABLES
+        parameter = lt_parameters
+        return    = lt_return.
+
+    "Caculate the start date & end date
+    READ TABLE lt_parameters TRANSPORTING NO FIELDS WITH KEY parid = /aif/if_globals=>gc_def_calendarrng.
+    IF sy-subrc IS INITIAL.
+      GET PARAMETER ID /aif/if_globals=>gc_def_calendarrng FIELD lv_calendarrng_value.
+      IF sy-subrc IS INITIAL.
+        IF lv_calendarrng_value IS INITIAL.
+          lv_date_begin = sy-datum.
+          lv_date_end = sy-datum.
+        ELSE.
+          TRY .
+              lv_calendarrng = lv_calendarrng_value.
+              lv_date_from = sy-datum - lv_calendarrng.
+              lv_date_begin = lv_date_from.
+              lv_date_end = sy-datum.
+            CATCH cx_root.                                   "#EC NO_HANDLE
+              lv_date_begin = '00010101'.
+              lv_date_end = '99991231'.
+          ENDTRY.
+        ENDIF.
+      ELSE.
+        lv_date_begin = '00010101'.
+        lv_date_end = '99991231'.
+      ENDIF.
+    ELSE.
+      lv_date_begin = '00010101'.
+      lv_date_end = '99991231'.
+    ENDIF.
+
+  ENDIF.
+**************************************************
+* import badi for change calendar color and tooltip.
+  lv_execute = 'X'.
+  GET BADI lref_calendar_color_tooltip.
+  IF lref_calendar_color_tooltip IS NOT INITIAL.
+    CALL BADI lref_calendar_color_tooltip->change_cal_color_tip_by_data
+      EXPORTING
+        iv_date_end   = lv_date_end
+        iv_date_begin = lv_date_begin
+*      it_stat_date      = lt_stat_date
+        it_all_keys   = gt_all_keys_0102
+      CHANGING
+        cr_calendar       = gr_calendar_0100
+        cv_enable_default = lv_execute.
+  ENDIF.
+**************************************************
+  IF lv_execute = 'X'.
+*    executed default change color action
+    CALL METHOD /aif/cl_calendar_color_tooltip=>change_cal_color_tip
+      EXPORTING
+        iv_date_end   = lv_date_end
+        iv_date_begin = lv_date_begin
+        it_all_keys   = gt_all_keys_0102
+      CHANGING
+        cr_calendar   = gr_calendar_0100.
+  ENDIF.
+ENDFORM.                    " SET_DATE_COLOR
+
+
+*&---------------------------------------------------------------------*
+*&      Form  get_default_from
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+"Note 2137806
+*&---------------------------------------------------------------------*
+*&      Form  get_default_begin
+*&---------------------------------------------------------------------*
+*       text
+*----------------------------------------------------------------------*
+*      -->EV_DATE_BEGIN  text
+*----------------------------------------------------------------------*
+FORM get_default_begin CHANGING ev_date_begin.
+  DATA lv_def_daterngc TYPE char10.
+  DATA lv_def_daterngi TYPE i.
+  DATA lt_paras        TYPE STANDARD TABLE OF bapiparam.
+  DATA ls_para         TYPE bapiparam.
+  DATA lt_ret          TYPE STANDARD TABLE OF bapiret2.
+
+
+  CALL FUNCTION 'BAPI_USER_GET_DETAIL'
+    EXPORTING
+      username  = sy-uname
+    TABLES
+      parameter = lt_paras
+      return    = lt_ret.
+
+  READ TABLE lt_paras TRANSPORTING NO FIELDS WITH KEY parid = '/AIF/DEF_DATERNG'.
+  IF sy-subrc IS INITIAL.
+    gv_select_dates_0100 = abap_true.
+    GET PARAMETER ID '/AIF/DEF_DATERNG' FIELD lv_def_daterngc.
+    IF sy-subrc IS INITIAL.
+      TRY .
+          lv_def_daterngi = lv_def_daterngc.
+        CATCH cx_root.                                   "#EC NO_HANDLE
+          lv_def_daterngi = 14.
+      ENDTRY.
+    ELSE.
+      lv_def_daterngi = 14.
+    ENDIF.
+  ELSE.
+    lv_def_daterngi = 14.
+  ENDIF.
+
+  ev_date_begin = sy-datum - lv_def_daterngi.
+ENDFORM.                    "get_default_from
+"Note 2137806
+*&---------------------------------------------------------------------*
+*& Form f_get_calendar_daterange
+*&---------------------------------------------------------------------*
+*& text
+*&---------------------------------------------------------------------*
+*& -->  p1        text
+*& <--  p2        text
+*&---------------------------------------------------------------------*
+FORM f_get_calendar_daterange CHANGING ct_date_range TYPE /AIF/TT_CREATE_DATE_RANGE.
+DATA:
+    ls_date_range        TYPE /aif/s_create_date_range,
+    lv_calendarrng_value TYPE char10,
+    lv_calendarrng       TYPE i,
+    lv_date_begin        TYPE /aif/date_from,
+    lv_date_end          TYPE /aif/date_to,
+    lt_parameters        TYPE STANDARD TABLE OF bapiparam,
+    lt_return            TYPE STANDARD TABLE OF bapiret2.
+
+  CLEAR ct_date_range.
+ "Get all parameter from SU3
+  CALL FUNCTION 'BAPI_USER_GET_DETAIL'
+    EXPORTING
+      username  = sy-uname
+    TABLES
+      parameter = lt_parameters
+      return    = lt_return.
+
+    "Caculate the start date & end date
+  READ TABLE lt_parameters TRANSPORTING NO FIELDS WITH KEY parid = /aif/if_globals=>gc_def_calendarrng.
+  IF sy-subrc IS INITIAL.
+    GET PARAMETER ID /aif/if_globals=>gc_def_calendarrng FIELD lv_calendarrng_value.
+    IF sy-subrc IS INITIAL.
+      IF lv_calendarrng_value IS INITIAL.
+        lv_date_begin = sy-datum.
+        lv_date_end = sy-datum.
+      ELSE.
+        TRY .
+            lv_calendarrng = lv_calendarrng_value.
+            lv_date_begin = sy-datum - lv_calendarrng.
+            lv_date_end = sy-datum.
+          CATCH cx_root.                                   "#EC NO_HANDLE
+            lv_date_begin = '00010101'.
+            lv_date_end = '99991231'.
+        ENDTRY.
+      ENDIF.
+    ELSE.
+      lv_date_begin = '00010101'.
+      lv_date_end = '99991231'.
+    ENDIF.
+  ELSE.
+    lv_date_begin = '00010101'.
+    lv_date_end = '99991231'.
+  ENDIF.
+
+  ls_date_range-sign = 'I'.
+  ls_date_range-option = 'BT'.
+  ls_date_range-low = lv_date_begin.
+  ls_date_range-high = lv_date_end.
+  APPEND ls_date_range to ct_date_range.
+ENDFORM.
