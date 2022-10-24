@@ -1,0 +1,1184 @@
+*&---------------------------------------------------------------------*
+*&  Include           /AIF/ERR_OVERVIEW_C01
+*&---------------------------------------------------------------------*
+*----------------------------------------------------------------------*
+*       CLASS lcl_evt_handler IMPLEMENTATION
+*----------------------------------------------------------------------*
+*
+*----------------------------------------------------------------------*
+CLASS lcl_evt_handler IMPLEMENTATION.
+  METHOD constructor.
+    GET PARAMETER ID '/AIF/ACC_MODE' FIELD mv_acc_mode.
+  ENDMETHOD.                    "constructor
+
+  METHOD on_expand_nc.
+    DATA: lr_nodes         TYPE REF TO cl_salv_nodes,
+          lr_node          TYPE REF TO cl_salv_node,
+          lv_expander_bool TYPE abap_bool.
+    lr_nodes = gr_alv_tree_0100->get_nodes( ).
+
+    TRY.
+        CALL METHOD lr_nodes->get_node
+          EXPORTING
+            node_key = node_key
+          RECEIVING
+            value    = lr_node.
+      CATCH cx_salv_msg .
+    ENDTRY.
+
+    DATA: lr_data TYPE REF TO data.
+    lr_data = lr_node->get_data_row( ).
+    FIELD-SYMBOLS: <ls_data> TYPE /aif/tree_data.
+    ASSIGN lr_data->* TO <ls_data>.
+
+    FIELD-SYMBOLS: <lfs_tree_data>  TYPE ts_tree_data,
+                   <lfs_tree_root>  TYPE ts_tree_data,
+                   <lfs_tree_root1> TYPE ts_tree_data.
+
+*   check whether subnode of nr
+    LOOP AT gt_tree_buffer ASSIGNING <lfs_tree_data> WHERE node_data-parent = <ls_data>-nr.
+
+*      if has subnode
+      READ TABLE gt_tree_buffer TRANSPORTING NO FIELDS
+                          WITH KEY node_data-parent = <lfs_tree_data>-node_data-nr .
+      IF sy-subrc EQ 0.
+        lv_expander_bool = abap_true.
+      ELSE.
+        lv_expander_bool = abap_false.
+      ENDIF.
+
+      READ TABLE gt_tree_buffer ASSIGNING <lfs_tree_root>
+                        WITH KEY ns = <lfs_tree_data>-ns
+                                 node_data-nr = <lfs_tree_data>-parent.
+      IF <lfs_tree_root> IS ASSIGNED.
+        TRY.
+*            add subnode of nr to tree
+            CALL METHOD lr_nodes->add_node
+              EXPORTING
+                related_node   = <lfs_tree_root>-node_data-node_key
+                relationship   = if_salv_c_node_relation=>last_child
+                data_row       = <lfs_tree_data>-node_data
+                collapsed_icon = <lfs_tree_data>-node_data-collapsed_icon
+                expanded_icon  = <lfs_tree_data>-node_data-expanded_icon
+                text           = <lfs_tree_data>-node_data-node_text
+                expander       = lv_expander_bool " ISFOLDER
+                folder         = abap_true
+              RECEIVING
+                node           = lr_node.
+          CATCH cx_salv_msg .                           "#EC NO_HANDLER
+        ENDTRY.
+
+        <lfs_tree_data>-node_data-node_key = lr_node->get_key( ).
+
+
+        PERFORM f_update_icon USING lr_node '@3Z@' 'All Messages'(300) 'COUNT_ALL_TEXT' <lfs_tree_data>-node_data-count_all.
+        PERFORM f_update_icon USING lr_node '@F1@' 'Technical Errors'(301) 'COUNT_A_TEXT' <lfs_tree_data>-node_data-count_a.
+        PERFORM f_update_icon USING lr_node '@AG@' 'Application Errors'(302) 'COUNT_E_TEXT' <lfs_tree_data>-node_data-count_e.
+        PERFORM f_update_icon USING lr_node '@5D@' 'Warnings'(303) 'COUNT_W_TEXT' <lfs_tree_data>-node_data-count_w.
+        PERFORM f_update_icon USING lr_node '@CG@' 'In Process'(304) 'COUNT_I_TEXT' <lfs_tree_data>-node_data-count_i.
+        PERFORM f_update_icon USING lr_node '@DF@' 'Successfully Processed'(305) 'COUNT_S_TEXT' <lfs_tree_data>-node_data-count_s.
+        PERFORM f_update_icon USING lr_node '@3J@' 'Canceled Messages'(306) 'COUNT_C_TEXT' <lfs_tree_data>-node_data-count_c.
+
+        PERFORM f_update_icon_enh USING <lfs_tree_data>-node_data CHANGING lr_node.
+      ENDIF.
+    ENDLOOP.
+*
+*Begin of Note 2649939
+    DATA lr_ral_proc  TYPE REF TO /aif/cl_ral_service.
+    DATA lr_ref_data  TYPE REF TO data.
+    DATA lv_tcode    TYPE sy-tcode.
+    DATA  lv_node_key TYPE salv_de_node_key .
+
+
+* Check the transaction
+    lv_tcode = cl_abap_syst=>get_transaction_code( ).
+    IF lv_tcode IS INITIAL.
+* If the general procedure doesn't return a valid tcode => it's a call from the WEB application
+      lv_tcode = /aif/if_ral_cons=>mc_tcode_err_web.
+    ENDIF.
+* get a reference to the RAL processing
+    lr_ral_proc = /aif/cl_ral_service=>get_instance( ).
+
+    GET REFERENCE OF gt_tree_buffer INTO lr_ref_data.
+    lv_node_key = <ls_data>-nr.
+* Call the RAL processing
+    lr_ral_proc->log(
+      EXPORTING
+        iv_caller         = /aif/if_ral_cons=>mc_ral_appl_interface_monitor
+        iv_transaction    = lv_tcode
+        iv_node_key       = lv_node_key
+        ir_data           = lr_ref_data ).
+*End of Note 2649939
+*
+  ENDMETHOD.                    "on_expand_nc
+
+
+  METHOD on_double_click.
+    DATA: lr_nodes    TYPE REF TO cl_salv_nodes,
+          lr_node     TYPE REF TO cl_salv_node,
+          lt_params   TYPE TABLE OF rsparams,
+          ls_param    TYPE rsparams,
+          lt_mdate    TYPE RANGE OF datum,
+          ls_mdate    LIKE LINE OF lt_mdate,
+          ls_key_data TYPE /aif/key_data_st.
+    lr_nodes = gr_alv_tree_0100->get_nodes( ).
+    TRY.
+        CALL METHOD lr_nodes->get_node
+          EXPORTING
+            node_key = node_key
+          RECEIVING
+            value    = lr_node.
+      CATCH cx_salv_msg .                               "#EC NO_HANDLER
+    ENDTRY.
+
+    DATA: lr_data TYPE REF TO data.
+    lr_data = lr_node->get_data_row( ).
+    FIELD-SYMBOLS: <ls_data> TYPE /aif/tree_data.
+    ASSIGN lr_data->* TO <ls_data>.
+    SET PARAMETER ID '/AIF/NS' FIELD <ls_data>-ns.
+    SET PARAMETER ID '/AIF/IFNAME' FIELD <ls_data>-ifname.
+    SET PARAMETER ID '/AIF/IFVERSION' FIELD <ls_data>-ifversion.
+    ls_param-kind = 'P'.
+    ls_param-selname = 'P_NAME9'.
+    ls_param-low = /aif/if_globals=>gc_eh_fix_sel_pars-recipient_name.
+    APPEND ls_param TO lt_params.
+    DATA: ls_rec_key TYPE /aif/alrt_cat_str.
+    ls_param-selname = 'S_VALUE9'.
+    ls_param-kind = 'S'.
+    ls_param-sign = 'I'.
+    ls_param-option = 'EQ'.
+    IF <ls_data>-ifname IS INITIAL.
+*       at namespace level: get recipient by namespace:
+      LOOP AT gt_all_keys_0102 INTO ls_key_data
+         WHERE ns = <ls_data>-ns.
+*            CONCATENATE ls_key_data-nsrecipient  ls_key_data-recipient INTO lv_nsrecipient SEPARATED BY space.
+        ls_rec_key-nsrecip = ls_key_data-nsrecipient.
+        ls_rec_key-recipient = ls_key_data-recipient.
+
+        ls_param-low = ls_rec_key.  " <ls_data>-recipient.
+        READ TABLE lt_params WITH KEY low = ls_rec_key TRANSPORTING NO FIELDS. "#EC *
+        IF sy-subrc EQ 0.
+        ELSE.
+          APPEND ls_param TO lt_params.
+        ENDIF.
+      ENDLOOP.
+    ELSEIF <ls_data>-nsrecipient IS INITIAL.
+*       at interface level: get recipient by namespace:
+      LOOP AT gt_all_keys_0102 INTO ls_key_data
+         WHERE ns = <ls_data>-ns
+           AND ifname = <ls_data>-ifname
+          AND ifversion = <ls_data>-ifversion.
+        ls_rec_key-nsrecip = ls_key_data-nsrecipient.
+        ls_rec_key-recipient = ls_key_data-recipient.
+
+        ls_param-low = ls_rec_key.  " <ls_data>-recipient.
+        READ TABLE lt_params WITH KEY low = ls_rec_key TRANSPORTING NO FIELDS. "#EC *
+        IF sy-subrc EQ 0.
+        ELSE.
+          APPEND ls_param TO lt_params.
+        ENDIF.
+      ENDLOOP.
+    ELSE.
+      ls_rec_key-nsrecip = <ls_data>-nsrecipient.
+      ls_rec_key-recipient = <ls_data>-recipient.
+      ls_param-low = ls_rec_key.  " <ls_data>-recipient.
+      APPEND ls_param TO lt_params.
+    ENDIF.
+
+    IF NOT gv_select_dates_0100 IS INITIAL.
+      CLEAR ls_param.
+      ls_param-selname = 'P_DFROM'.
+      ls_param-kind = 'P'.
+      ls_param-low = gv_date_begin_0100.
+      APPEND ls_param TO lt_params.
+      ls_param-selname = 'P_TFROM'.
+      ls_param-kind = 'P'.
+      ls_param-low = gv_time_begin_0100.
+      APPEND ls_param TO lt_params.
+      ls_param-selname = 'P_DTO'.
+      ls_param-kind = 'P'.
+      ls_param-low = gv_date_end_0100.
+      APPEND ls_param TO lt_params.
+      ls_param-selname = 'P_TTO'.
+      ls_param-kind = 'P'.
+      ls_param-low = gv_time_end_0100.
+      APPEND ls_param TO lt_params.
+    ENDIF.
+
+    ls_param-selname = 'S_VALUE2'.
+    ls_param-kind = 'S'.
+    ls_param-sign = 'I'.
+    ls_param-option = 'EQ'.
+    IF NOT <ls_data>-ns IS INITIAL.
+      ls_param-low = <ls_data>-ns.
+      APPEND ls_param TO lt_params.
+    ENDIF.
+
+    IF NOT <ls_data>-ifname IS INITIAL.
+      ls_param-selname = 'S_VALUE3'.
+      ls_param-low = <ls_data>-ifname.
+      APPEND ls_param TO lt_params.
+      ls_param-selname = 'S_VALUE4'.
+      ls_param-low = <ls_data>-ifversion.
+      APPEND ls_param TO lt_params.
+    ELSE.
+*     if Namespace level is selected, then the all version under this namespace will be selected out.
+      IF <ls_data>-ifname IS INITIAL AND <ls_data>-ifversion IS INITIAL.
+        ls_param-selname = 'S_VALUE4'.
+        ls_param-low = '*'.
+        APPEND ls_param TO lt_params.
+      ENDIF.
+    ENDIF.
+    ls_param-kind = 'P'.
+* if only errors are to be displayed, pass only 'E' and (if techuser) 'A' and 'I'
+    IF gv_only_errors_0100 IS INITIAL.
+      ls_param-low = ''.
+    ELSE.
+      ls_param-low = 'X'.
+    ENDIF.
+    ls_param-selname = 'P_STS_E'.
+    APPEND ls_param TO lt_params.
+*    CLEAR ls_param.
+    IF <ls_data>-is_techuser IS INITIAL.
+      ls_param-low = ''.
+    ENDIF.
+    ls_param-selname = 'P_STS_A'.
+    APPEND ls_param TO lt_params.
+    ls_param-selname = 'P_STS_I'.
+    APPEND ls_param TO lt_params.
+    IF NOT gv_select_dates_0100 IS INITIAL.
+      ls_param-kind = 'S'.
+      ls_mdate-sign = 'I'.
+      ls_mdate-option = 'BT'.
+      ls_mdate-low = gv_date_begin_0100.
+      ls_mdate-high = gv_date_end_0100.
+      APPEND ls_mdate TO lt_mdate.
+    ELSE.
+      REFRESH: lt_mdate.
+      ls_param-kind = 'P'.
+      ls_param-sign = 'I'.
+      ls_param-option = 'EQ'.
+      ls_param-selname = 'P_NODATE'.
+      ls_param-low = 'X'.
+      APPEND ls_param TO lt_params.
+    ENDIF.
+
+* transfer up to 5 extra parameter
+*    FIELD-SYMBOLS: <ls_key> TYPE /aif/key_data,
+    FIELD-SYMBOLS: <ls_key_values> TYPE /aif/keyvalues.
+    DATA: lv_par_nr    TYPE c,
+          lt_keyvalues TYPE /aif/keyvalues_t.
+    lt_keyvalues = <ls_data>-keyvalues.
+    IF sy-subrc = 0.
+      ls_param-sign = 'I'.
+      ls_param-option = 'EQ'.
+      LOOP AT lt_keyvalues ASSIGNING <ls_key_values>.
+        IF sy-tabix > 5.
+          EXIT.
+        ENDIF.
+        lv_par_nr = sy-tabix + 4.
+        CHECK NOT <ls_key_values>-value IS INITIAL.
+        ls_param-kind = 'P'.
+        CONCATENATE 'P_NAME' lv_par_nr INTO ls_param-selname.
+        ls_param-low = <ls_key_values>-sp_name.
+        APPEND ls_param TO lt_params.
+        ls_param-kind = 'S'.
+        CONCATENATE 'S_VALUE' lv_par_nr INTO ls_param-selname.
+        ls_param-low = <ls_key_values>-value.
+        APPEND ls_param TO lt_params.
+      ENDLOOP.
+    ENDIF.
+
+    EXPORT gc_mdate FROM lt_mdate TO MEMORY ID '/AIF/S_MDATE'. "#EC
+
+    SUBMIT /aif/err_trans
+          WITH p_skip = 'X'
+          WITH p_max = gv_max_0100
+          WITH SELECTION-TABLE lt_params
+          AND RETURN.                                    "#EC CI_SUBMIT
+  ENDMETHOD.                    "on_double_click
+**********************************************************************
+  METHOD on_link_click.
+    DATA: lr_nodes    TYPE REF TO cl_salv_nodes,
+          lr_node     TYPE REF TO cl_salv_node,
+          lt_params   TYPE TABLE OF rsparams,
+          ls_param    TYPE rsparams,
+          lt_mdate    TYPE RANGE OF datum,
+          ls_mdate    LIKE LINE OF lt_mdate,
+          ls_key_data TYPE /aif/key_data_st.
+
+* Note 1990159
+    DATA: lr_data TYPE REF TO data.
+    DATA: ls_rec_key TYPE /aif/alrt_cat_str.
+    DATA: lv_delete TYPE abap_bool VALUE abap_false.
+    DATA: ls_alrt_user TYPE /aif/t_alrt_user.
+    DATA: lt_users       TYPE TABLE OF str_users,
+          ls_user        TYPE str_users,
+          lt_roles       TYPE TABLE OF str_agrs,
+          lt_alrt_role   TYPE TABLE OF /aif/t_alrt_role,
+          ls_alrt_usrnot TYPE /aif/alrt_usrnot,
+          lv_mail_active TYPE abap_bool.
+    FIELD-SYMBOLS: <ls_data> TYPE /aif/tree_data.
+    FIELD-SYMBOLS: <ls_alrt_role> TYPE /aif/t_alrt_role.
+
+    lr_nodes = gr_alv_tree_0100->get_nodes( ).
+    TRY.
+        CALL METHOD lr_nodes->get_node
+          EXPORTING
+            node_key = node_key
+          RECEIVING
+            value    = lr_node.
+
+        lr_data = lr_node->get_data_row( ).
+        ASSIGN lr_data->* TO <ls_data>.
+
+        IF columnname = 'MAIL'.
+* check if mail notification is active for current user or not
+          SELECT SINGLE * INTO ls_alrt_usrnot
+            FROM /aif/alrt_usrnot
+            WHERE ns = <ls_data>-ns
+            AND   ifname = <ls_data>-ifname
+            AND   ifversion = <ls_data>-ifversion
+            AND   nsrecipient = <ls_data>-nsrecipient
+            AND   recipient = <ls_data>-recipient
+            AND   username = sy-uname.
+          IF sy-subrc <> 0.
+            SELECT SINGLE * INTO ls_alrt_usrnot
+              FROM /aif/alrt_usrnot
+              WHERE ns = <ls_data>-ns
+              AND   ifname = <ls_data>-ifname
+              AND   ifversion = <ls_data>-ifversion
+              AND   nsrecipient = <ls_data>-nsrecipient
+              AND   recipient = <ls_data>-recipient
+              AND   username = ''.
+          ENDIF.
+          IF sy-subrc = 0.
+* mail notification is defined interface-specific in /AIF/ALRT_USRNOT
+            IF ls_alrt_usrnot-send_mail IS INITIAL.
+              ls_alrt_usrnot-send_mail = 'X'.
+              ls_alrt_usrnot-send_always = ''.
+            ELSE.
+              IF ls_alrt_usrnot-send_always IS INITIAL.
+                ls_alrt_usrnot-send_mail = 'X'.
+                ls_alrt_usrnot-send_always = 'X'.
+              ELSE.
+                ls_alrt_usrnot-send_mail = ''.
+                ls_alrt_usrnot-send_always = ''.
+              ENDIF.
+            ENDIF.
+            ls_alrt_usrnot-username = sy-uname.
+          ELSE.
+* mail notification is not defined interface-specific in /AIF/ALRT_USRNOT, so check user/role configuration
+            IF lv_mail_active = ''.
+
+              DATA lr_cl_alrt_user TYPE REF TO  /aif/if_dba_alrt_user.
+              DATA ls_key          TYPE         /aif/t_alrt_user.
+              lr_cl_alrt_user ?=  /aif/cl_dba_reader_mgr=>get_instance( )->get_dba_alrt_user( ).
+              ls_key-nsrecipient = <ls_data>-nsrecipient.
+              ls_key-recipient   = <ls_data>-recipient.
+              ls_key-uname       = cl_abap_syst=>get_user_name(  ).
+              TRY.
+                  DATA(lt_alrt_user) = lr_cl_alrt_user->read_table(    EXPORTING      is_key   = ls_key ).
+                CATCH /aif/cx_dba_alrt.
+* Do nothing  - space ok
+              ENDTRY.
+              DELETE lt_alrt_user WHERE message = 'N' OR message = 'W' OR message = 'S'.
+              READ TABLE lt_alrt_user  INDEX 1 TRANSPORTING NO FIELDS.
+              IF sy-subrc = 0.
+                lv_mail_active = 'X'.
+              ENDIF.
+
+            ENDIF.
+            IF sy-subrc = 0.
+              lv_mail_active = 'X'.
+            ELSE.
+              REFRESH: lt_users.
+              ls_user-uname =  sy-uname.
+              APPEND ls_user TO lt_users.
+
+              CALL FUNCTION 'PRGN_READ_ACTIVITY_GROUPS'
+                TABLES
+                  users                        = lt_users
+                  activity_groups_users        = lt_roles
+                EXCEPTIONS
+                  no_activity_groups_available = 1
+                  OTHERS                       = 2.
+              IF NOT lt_roles[] IS INITIAL.
+
+                DATA lr_cl_alrt_roles TYPE REF TO /aif/if_dba_alrt_role.
+                lr_cl_alrt_roles ?= /aif/cl_dba_reader_mgr=>get_instance( )->get_dba_alrt_role( ).
+                lt_alrt_role =   lr_cl_alrt_roles->read_table_for_roles( EXPORTING it_str_agrs = lt_roles[] ) .
+
+                DELETE lt_alrt_user WHERE message = 'N' OR message = 'W' OR message = 'S'.
+                READ TABLE lt_alrt_user  INDEX 1 TRANSPORTING NO FIELDS.
+                IF sy-subrc = 0.
+                  lv_mail_active = 'X'.
+                ENDIF.
+              ENDIF.
+            ENDIF.
+            ls_alrt_usrnot-ns = <ls_data>-ns.
+            ls_alrt_usrnot-ifname = <ls_data>-ifname.
+            ls_alrt_usrnot-ifversion = <ls_data>-ifversion.
+            ls_alrt_usrnot-nsrecipient = <ls_data>-nsrecipient.
+            ls_alrt_usrnot-recipient = <ls_data>-recipient.
+            ls_alrt_usrnot-username = sy-uname.
+            IF lv_mail_active IS INITIAL.
+              ls_alrt_usrnot-send_mail = 'X'.
+            ELSE.
+              ls_alrt_usrnot-send_mail = ''.
+            ENDIF.
+          ENDIF.
+          MODIFY /aif/alrt_usrnot FROM ls_alrt_usrnot.
+          CALL FUNCTION 'DB_COMMIT'.
+
+          PERFORM f_update_node USING columnname ls_alrt_usrnot-send_mail ls_alrt_usrnot-send_always CHANGING lr_node.
+        ELSEIF columnname = 'ALERT'.
+          DATA: lr_alert_man TYPE REF TO cl_alert_manager,
+                lt_alert_id  TYPE TABLE OF /aif/alert_idx-alert_id,
+                ls_alert_id  TYPE /aif/alert_idx-alert_id,
+                ls_alert_ids TYPE salrt,
+                lt_alert_ids TYPE TABLE OF salrt,
+                lv_time      TYPE timestamp.
+
+          IF /aif/cl_notification_api=>is_notification_service_active( ).
+
+            DATA(lr_notif_api) = /aif/cl_notification_api=>get_instance( ).
+
+            CALL METHOD lr_notif_api->confirm_notification
+              EXPORTING
+                iv_ns        = <ls_data>-ns
+                iv_ifname    = <ls_data>-ifname
+                iv_ifversion = <ls_data>-ifversion
+*               msgguid      =
+              .
+            COMMIT WORK.
+            PERFORM f_update_node USING columnname ls_alrt_usrnot-send_mail ls_alrt_usrnot-send_always CHANGING lr_node.
+          ENDIF.
+
+          IF /aif/cl_ans_api=>is_ans_active( ).
+
+            TRY.
+                /aif/cl_ans_api=>get_instance( )->confirm_notification(
+                  EXPORTING
+                    iv_ns        = <ls_data>-ns
+                    iv_ifname    = <ls_data>-ifname
+                    iv_ifversion = <ls_data>-ifversion
+                ).
+
+
+
+              CATCH /aif/cx_ans_not_active.
+                "do nothing
+            ENDTRY..
+
+          ENDIF.
+
+
+          SELECT alert_id FROM /aif/alert_idx           "#EC CI_NOFIELD
+            INTO TABLE lt_alert_id
+            WHERE ns = <ls_data>-ns
+            AND   ifname = <ls_data>-ifname
+            AND   ifver = <ls_data>-ifversion
+            AND   nsrecip = <ls_data>-nsrecipient
+            AND   recipient = <ls_data>-recipient .
+
+          SORT lt_alert_id.
+* Note 2092983
+          DELETE lt_alert_id WHERE table_line IS INITIAL.
+          DELETE ADJACENT DUPLICATES FROM lt_alert_id.
+          CHECK lt_alert_id IS NOT INITIAL.
+* Note 2092983
+          SELECT DISTINCT externalid expirytime FROM salrt INTO CORRESPONDING FIELDS OF TABLE lt_alert_ids
+            FOR ALL ENTRIES IN lt_alert_id
+            WHERE externalid = lt_alert_id-table_line
+            AND   status <> 'C'.
+
+          lr_alert_man = cl_alert_manager=>get_instance( ).
+          GET TIME STAMP FIELD lv_time.
+          LOOP AT lt_alert_ids INTO ls_alert_ids.
+* the alert is not expired, as well as not confirmed
+* confirm the alert ID
+            TRY.
+                CALL METHOD lr_alert_man->confirm_alert_by_external_id
+                  EXPORTING
+                    ip_external_id = ls_alert_ids-externalid.
+              CATCH cx_alert_recipient_unknown cx_alert_locked.
+            ENDTRY.
+          ENDLOOP.
+
+          COMMIT WORK AND WAIT.
+
+          PERFORM f_update_node USING columnname ls_alrt_usrnot-send_mail ls_alrt_usrnot-send_always CHANGING lr_node.
+
+
+        ELSE.
+          SET PARAMETER ID '/AIF/NS' FIELD <ls_data>-ns.
+          SET PARAMETER ID '/AIF/IFNAME' FIELD <ls_data>-ifname.
+          SET PARAMETER ID '/AIF/IFVERSION' FIELD <ls_data>-ifversion.
+          ls_param-kind = 'P'.
+          ls_param-selname = 'P_NAME9'.
+          ls_param-low = /aif/if_globals=>gc_eh_fix_sel_pars-recipient_name.
+          APPEND ls_param TO lt_params.
+          ls_param-selname = 'S_VALUE9'.
+          ls_param-kind = 'S'.
+          ls_param-sign = 'I'.
+          ls_param-option = 'EQ'.
+          IF <ls_data>-ifname IS INITIAL.
+*           at namespace level: get recipient by namespace:
+            LOOP AT gt_all_keys_0102 INTO ls_key_data
+               WHERE ns = <ls_data>-ns.
+*                CONCATENATE ls_key_data-nsrecipient  ls_key_data-recipient INTO lv_nsrecipient SEPARATED BY space.
+              ls_rec_key-nsrecip = ls_key_data-nsrecipient.
+              ls_rec_key-recipient = ls_key_data-recipient.
+
+              ls_param-low = ls_rec_key.  " <ls_data>-recipient.
+              READ TABLE lt_params WITH KEY low = ls_rec_key TRANSPORTING NO FIELDS. "#EC *
+              IF sy-subrc EQ 0.
+              ELSE.
+                APPEND ls_param TO lt_params.
+              ENDIF.
+            ENDLOOP.
+          ELSEIF <ls_data>-nsrecipient IS INITIAL.
+*           at interface level: get recipient by namespace:
+            LOOP AT gt_all_keys_0102 INTO ls_key_data
+               WHERE ns = <ls_data>-ns
+                 AND ifname = <ls_data>-ifname
+                AND ifversion = <ls_data>-ifversion.
+              ls_rec_key-nsrecip = ls_key_data-nsrecipient.
+              ls_rec_key-recipient = ls_key_data-recipient.
+
+              ls_param-low = ls_rec_key.  " <ls_data>-recipient.
+              READ TABLE lt_params WITH KEY low = ls_rec_key TRANSPORTING NO FIELDS. "#EC *
+              IF sy-subrc EQ 0.
+              ELSE.
+                APPEND ls_param TO lt_params.
+              ENDIF.
+            ENDLOOP.
+          ELSE.
+            ls_rec_key-nsrecip = <ls_data>-nsrecipient.
+            ls_rec_key-recipient = <ls_data>-recipient.
+            ls_param-low = ls_rec_key.  " <ls_data>-recipient.
+            APPEND ls_param TO lt_params.
+          ENDIF.
+
+          IF NOT gv_select_dates_0100 IS INITIAL.
+            CLEAR ls_param.
+            ls_param-selname = 'P_DFROM'.
+            ls_param-kind = 'P'.
+            ls_param-low = gv_date_begin_0100.
+            APPEND ls_param TO lt_params.
+            ls_param-selname = 'P_TFROM'.
+            ls_param-kind = 'P'.
+            ls_param-low = gv_time_begin_0100.
+            APPEND ls_param TO lt_params.
+            ls_param-selname = 'P_DTO'.
+            ls_param-kind = 'P'.
+            ls_param-low = gv_date_end_0100.
+            APPEND ls_param TO lt_params.
+            ls_param-selname = 'P_TTO'.
+            ls_param-kind = 'P'.
+            ls_param-low = gv_time_end_0100.
+            APPEND ls_param TO lt_params.
+          ENDIF.
+
+          ls_param-selname = 'S_VALUE2'.
+          ls_param-kind = 'S'.
+          ls_param-sign = 'I'.
+          ls_param-option = 'EQ'.
+          IF NOT <ls_data>-ns IS INITIAL.
+            ls_param-low = <ls_data>-ns.
+            APPEND ls_param TO lt_params.
+          ENDIF.
+
+          IF NOT <ls_data>-ifname IS INITIAL.
+            ls_param-selname = 'S_VALUE3'.
+            ls_param-low = <ls_data>-ifname.
+            APPEND ls_param TO lt_params.
+            ls_param-selname = 'S_VALUE4'.
+            ls_param-low = <ls_data>-ifversion.
+            APPEND ls_param TO lt_params.
+          ELSE.
+*             if Namespace level is selected, then the all version under this namespace will be selected out.
+            IF <ls_data>-ifname IS INITIAL AND <ls_data>-ifversion IS INITIAL.
+              ls_param-selname = 'S_VALUE4'.
+              ls_param-low = '*'.
+              APPEND ls_param TO lt_params.
+            ENDIF.
+          ENDIF.
+          ls_param-kind = 'P'.
+*      NOT only errors are to be displayed, pass only 'S' 'W' 'E' 'A' 'C' 'I'
+          IF columnname = 'COUNT_ALL_TEXT'.
+            ls_param-low = 'X'.
+            ls_param-selname = 'P_STS_S'.
+            APPEND ls_param TO lt_params.
+            ls_param-low = 'X'.
+            ls_param-selname = 'P_STS_W'.
+            APPEND ls_param TO lt_params.
+            ls_param-low = 'X'.
+            ls_param-selname = 'P_STS_E'.
+            APPEND ls_param TO lt_params.
+*             technical user
+            IF <ls_data>-is_techuser IS INITIAL.
+              ls_param-low = ''.
+            ELSE.
+              ls_param-low = 'X'.
+            ENDIF.
+            ls_param-selname = 'P_STS_A'.
+            APPEND ls_param TO lt_params.
+            ls_param-low = 'X'.
+            ls_param-selname = 'P_STS_C'.
+            APPEND ls_param TO lt_params.
+*             technical user
+            IF <ls_data>-is_techuser IS INITIAL.
+              ls_param-low = ''.
+            ELSE.
+              ls_param-low = 'X'.
+            ENDIF.
+            ls_param-selname = 'P_STS_I'.
+            APPEND ls_param TO lt_params.
+          ELSE.
+            CLEAR ls_param.
+            IF columnname = 'COUNT_S_TEXT'.
+              ls_param-low = 'X'.
+              ls_param-selname = 'P_STS_S'.
+              APPEND ls_param TO lt_params.
+            ELSE.
+              ls_param-low = ''.
+              ls_param-selname = 'P_STS_S'.
+              APPEND ls_param TO lt_params.
+            ENDIF.
+            IF columnname = 'COUNT_W_TEXT'.
+              ls_param-low = 'X'.
+              ls_param-selname = 'P_STS_W'.
+              APPEND ls_param TO lt_params.
+            ELSE.
+              ls_param-low = ''.
+              ls_param-selname = 'P_STS_W'.
+              APPEND ls_param TO lt_params.
+            ENDIF.
+            IF columnname = 'COUNT_E_TEXT'.
+              ls_param-low = 'X'.
+              ls_param-selname = 'P_STS_E'.
+              APPEND ls_param TO lt_params.
+            ELSE.
+              ls_param-low = ''.
+              ls_param-selname = 'P_STS_E'.
+              APPEND ls_param TO lt_params.
+            ENDIF.
+            IF columnname = 'COUNT_A_TEXT'.
+*             technical user
+              IF <ls_data>-is_techuser IS INITIAL.
+                ls_param-low = ''.
+              ELSE.
+                ls_param-low = 'X'.
+              ENDIF.
+              ls_param-selname = 'P_STS_A'.
+              APPEND ls_param TO lt_params.
+            ELSE.
+              ls_param-low = ''.
+              ls_param-selname = 'P_STS_A'.
+              APPEND ls_param TO lt_params.
+            ENDIF.
+            IF columnname = 'COUNT_C_TEXT'.
+              ls_param-low = 'X'.
+              ls_param-selname = 'P_STS_C'.
+              APPEND ls_param TO lt_params.
+            ELSE.
+              ls_param-low = ''.
+              ls_param-selname = 'P_STS_C'.
+              APPEND ls_param TO lt_params.
+            ENDIF.
+            IF columnname = 'COUNT_I_TEXT'.
+*             technical user
+              IF <ls_data>-is_techuser IS INITIAL.
+                ls_param-low = ''.
+              ELSE.
+                ls_param-low = 'X'.
+              ENDIF.
+              ls_param-selname = 'P_STS_I'.
+              APPEND ls_param TO lt_params.
+            ELSE.
+              ls_param-low = ''.
+              ls_param-selname = 'P_STS_I'.
+              APPEND ls_param TO lt_params.
+            ENDIF.
+          ENDIF.
+
+          IF NOT gv_select_dates_0100 IS INITIAL.
+            ls_param-kind = 'S'.
+            ls_mdate-sign = 'I'.
+            ls_mdate-option = 'BT'.
+            ls_mdate-low = gv_date_begin_0100.
+            ls_mdate-high = gv_date_end_0100.
+            APPEND ls_mdate TO lt_mdate.
+          ELSE.
+            REFRESH: lt_mdate.
+            ls_param-kind = 'P'.
+            ls_param-sign = 'I'.
+            ls_param-option = 'EQ'.
+            ls_param-selname = 'P_NODATE'.
+            ls_param-low = 'X'.
+            APPEND ls_param TO lt_params.
+          ENDIF.
+
+          EXPORT gc_mdate FROM lt_mdate TO MEMORY ID '/AIF/S_MDATE'. "#EC
+
+          SUBMIT /aif/err_trans
+                WITH p_skip = 'X'
+                WITH p_max = gv_max_0100
+                WITH SELECTION-TABLE lt_params
+                AND RETURN.                              "#EC CI_SUBMIT
+        ENDIF.
+      CATCH cx_salv_msg .                               "#EC NO_HANDLER
+    ENDTRY.
+  ENDMETHOD.                    "on_link_click
+  METHOD on_added_function.
+    DATA: lref_err_app     TYPE REF TO /aif/cl_db_access_err_app,
+          lref_selections  TYPE REF TO cl_salv_selections_tree,
+          lref_item        TYPE REF TO cl_salv_item,
+          lr_badi_do_funcs TYPE REF TO /aif/error_monitor_act,
+          ls_err_app       TYPE /aif/t_err_app,
+          lt_nodes         TYPE  salv_t_nodes,
+          ls_node          TYPE salv_s_nodes,
+          lref_data_row    TYPE REF TO  data,
+          lv_message       TYPE string,
+          lv_lines         TYPE i.
+    DATA: lr_adv_msg_sum  TYPE REF TO object.
+    FIELD-SYMBOLS <ls_tree_data> TYPE /aif/tree_data.
+
+    lref_selections = gr_alv_tree_0100->get_selections( ).
+    lt_nodes = lref_selections->get_selected_nodes( ).
+
+    IF lt_nodes[] IS INITIAL.
+      lref_item = lref_selections->get_selected_item( ).
+      IF lref_item IS BOUND.
+        ls_node-node = lref_item->get_node( ).
+        ls_node-key = ls_node-node->get_key( ).
+        APPEND ls_node TO lt_nodes.
+      ENDIF.
+    ENDIF.
+    lv_lines = lines( lt_nodes ).
+
+    CASE e_salv_function.
+      WHEN 'SUMMARY'.
+* if namespace level is selected, collect alle child nodes
+        IF lv_lines = 0.
+          MESSAGE 'Select at least one line'(108) TYPE 'I'.
+        ELSEIF lv_lines = 1.
+          READ TABLE lt_nodes INTO ls_node INDEX 1.
+          IF ls_node-node->is_folder( ) = abap_true.
+            TRY.
+                lt_nodes = ls_node-node->get_children( ).
+              CATCH cx_salv_msg .                       "#EC NO_HANDLER
+            ENDTRY.
+          ENDIF.
+          PERFORM f_display_summary USING lt_nodes.
+        ELSE.
+          MESSAGE 'Select only one line'(112) TYPE 'I'.
+        ENDIF.
+      WHEN 'MYMESSAGES'.
+        TRY.
+            CREATE OBJECT lr_adv_msg_sum TYPE ('/AIF/CL_ADV_MSG_SUM_TOOL').
+            CALL METHOD lr_adv_msg_sum->('ON_MY_MESSAGES')
+              EXPORTING
+                iv_max_data_msg          = gv_max_0100
+                iv_with_date_restriction = gv_select_dates_0100
+                iv_date_from             = gv_date_begin_0100
+                iv_date_to               = gv_date_end_0100
+                iv_time_from             = gv_time_begin_0100
+                iv_time_to               = gv_time_end_0100.
+          CATCH cx_sy_dyn_call_error cx_sy_create_object_error.
+        ENDTRY.
+        "************** Note 2345535 Start **************
+      WHEN 'TRANSFER'.
+        CALL FUNCTION 'FUNCTION_EXISTS'
+          EXPORTING
+            funcname           = /aif/if_globals=>gc_last_data_transfer_fumo
+          EXCEPTIONS
+            function_not_exist = 1.
+        IF sy-subrc = 0.
+          DATA ls_all_keys TYPE /aif/key_data_st.
+          DATA ls_key TYPE /aif/ifkeys.
+          DATA lt_keys TYPE /aif/ifkeys_tt.
+          LOOP AT gt_all_keys_0102 INTO ls_all_keys.
+            ls_key-ns = ls_all_keys-ns.
+            ls_key-ifname = ls_all_keys-ifname.
+            ls_key-ifver = ls_all_keys-ifversion.
+            MOVE-CORRESPONDING ls_all_keys TO ls_key.
+            APPEND ls_key TO lt_keys.
+          ENDLOOP.
+          CALL FUNCTION /aif/if_globals=>gc_last_data_transfer_fumo
+            EXPORTING
+              it_ifkeys = lt_keys.
+        ENDIF.
+        "************** Note 2345535 End ****************
+      WHEN OTHERS.
+************************************************
+        GET BADI lr_badi_do_funcs.
+        IF lr_badi_do_funcs IS NOT INITIAL.
+          CALL BADI lr_badi_do_funcs->do_action
+            EXPORTING
+              it_nodes         = lt_nodes
+              it_tree_data     = gt_tree_data_0100
+              iv_selected_date = gv_select_dates_0100
+              iv_date_begin    = gv_date_begin_0100
+              iv_date_end      = gv_date_end_0100
+              iv_func_code     = e_salv_function.
+        ENDIF.
+*************************************************
+    ENDCASE.
+  ENDMETHOD.                    "on_added_function
+
+  METHOD on_date_selected.
+    gv_display_233 = 'X'.
+    gv_date_begin_0100 = date_begin.
+    gv_date_end_0100 = date_end.
+    gv_time_begin_0100 = gc_initial_time.
+    gv_time_end_0100 = gc_max_time.
+    WRITE gv_date_begin_0100 TO gv_input_begindt->value.
+    WRITE gv_date_end_0100 TO gv_input_enddt->value.
+    CALL METHOD gv_input_begindt->set_value
+      EXPORTING
+        value = gv_input_begindt->value.
+    CALL METHOD gv_input_enddt->set_value
+      EXPORTING
+        value = gv_input_enddt->value.
+    IF sy-dbsys = /aif/if_globals=>gc_hdb_sys.
+      WRITE gv_time_begin_0100 TO gv_input_begintm->value.
+      WRITE gv_time_end_0100 TO gv_input_endtm->value.
+      CALL METHOD gv_input_begintm->set_value
+        EXPORTING
+          value = gv_input_begintm->value.
+      CALL METHOD gv_input_endtm->set_value
+        EXPORTING
+          value = gv_input_endtm->value.
+    ENDIF.
+
+* merge documents
+    CALL METHOD gr_document->merge_document.
+* display documents
+    CALL METHOD gr_document->display_document
+      EXPORTING
+        reuse_control      = 'X'
+        reuse_registration = 'X'.
+    PERFORM f_update_tree_0100_ds.
+  ENDMETHOD.                    "on_date_selected
+  METHOD on_new_resources.
+
+    IF gv_first_display IS INITIAL.
+      IF mv_acc_mode = space.
+* initialize documents
+
+* fill documents
+        CALL METHOD gr_document->initialize_document.
+        PERFORM f_fill_document.
+* merge documents
+        CALL METHOD gr_document->merge_document.
+* display documents
+        CALL METHOD gr_document->display_document
+          EXPORTING
+            reuse_control      = 'X'
+            reuse_registration = 'X'.
+      ENDIF.
+    ENDIF.
+  ENDMETHOD.                    "on_new_resources
+  METHOD handle_begindt_buttons.
+    DATA:
+      lv_date  TYPE sydatum,
+      lv_error TYPE c.
+    PERFORM f_f4_date USING gv_input_begindt->value
+                      CHANGING lv_date.
+    IF lv_date IS NOT INITIAL.
+      WRITE lv_date TO gv_input_begindt->value.
+      CALL METHOD gv_input_begindt->set_value
+        EXPORTING
+          value = gv_input_begindt->value.
+      gv_date_begin_0100 = lv_date.
+      PERFORM f_date_validation_more USING    gv_date_begin_0100
+                                              gv_date_end_0100
+                                              gv_time_begin_0100
+                                              gv_time_end_0100
+                                     CHANGING lv_error.
+* merge documents
+      CALL METHOD gr_document->merge_document.
+* display documents
+      CALL METHOD gr_document->display_document
+        EXPORTING
+          reuse_control      = 'X'
+          reuse_registration = 'X'.
+
+      PERFORM f_update_calendar_0100.
+* trigger refreshing
+      PERFORM f_update_tree_0100.
+    ENDIF.
+  ENDMETHOD.                    "handle_picture_button
+  METHOD handle_enddt_buttons.
+    DATA:
+      lv_date  TYPE sydatum,
+      lv_error TYPE c.
+    PERFORM f_f4_date USING gv_input_enddt->value
+                      CHANGING lv_date.
+    IF lv_date IS NOT INITIAL.
+      WRITE lv_date TO gv_input_enddt->value.
+      CALL METHOD gv_input_enddt->set_value
+        EXPORTING
+          value = gv_input_enddt->value.
+      gv_date_end_0100 = lv_date.
+      PERFORM f_date_validation_more USING    gv_date_begin_0100
+                                              gv_date_end_0100
+                                              gv_time_begin_0100
+                                              gv_time_end_0100
+                                     CHANGING lv_error.
+* merge documents
+      CALL METHOD gr_document->merge_document.
+* display documents
+      CALL METHOD gr_document->display_document
+        EXPORTING
+          reuse_control      = 'X'
+          reuse_registration = 'X'.
+
+      PERFORM f_update_calendar_0100.
+* trigger refreshing
+      PERFORM f_update_tree_0100.
+    ENDIF.
+  ENDMETHOD.                    "handle_enddt_buttons
+  METHOD handle_begintm_buttons.
+    DATA: lv_time  TYPE syuzeit,
+          lv_error TYPE c.
+    PERFORM f_f4_time USING gv_input_begintm->value
+                      CHANGING lv_time.
+    WRITE lv_time TO gv_input_begintm->value.
+    CALL METHOD gv_input_begintm->set_value
+      EXPORTING
+        value = gv_input_begintm->value.
+    gv_time_begin_0100 = lv_time.
+    PERFORM f_date_validation_more USING    gv_date_begin_0100
+                                            gv_date_end_0100
+                                            gv_time_begin_0100
+                                            gv_time_end_0100
+                                   CHANGING lv_error.
+* merge documents
+    CALL METHOD gr_document->merge_document.
+* display documents
+    CALL METHOD gr_document->display_document
+      EXPORTING
+        reuse_control      = 'X'
+        reuse_registration = 'X'.
+
+* trigger refreshing
+    PERFORM f_update_tree_0100.
+  ENDMETHOD.                    "handle_begintm_buttons
+  METHOD handle_endtm_buttons.
+    DATA: lv_time  TYPE syuzeit,
+          lv_error TYPE c.
+    PERFORM f_f4_time USING gv_input_endtm->value
+                      CHANGING lv_time.
+    WRITE lv_time TO gv_input_endtm->value.
+    CALL METHOD gv_input_endtm->set_value
+      EXPORTING
+        value = gv_input_endtm->value.
+    gv_time_end_0100 = lv_time.
+    PERFORM f_date_validation_more USING    gv_date_begin_0100
+                                            gv_date_end_0100
+                                            gv_time_begin_0100
+                                            gv_time_end_0100
+                                   CHANGING lv_error.
+* merge documents
+    CALL METHOD gr_document->merge_document.
+* display documents
+    CALL METHOD gr_document->display_document
+      EXPORTING
+        reuse_control      = 'X'
+        reuse_registration = 'X'.
+
+* trigger refreshing
+    PERFORM f_update_tree_0100.
+  ENDMETHOD.                    "handle_endtm_buttons
+  METHOD handle_selectdt_buttons.
+    DATA lv_msg_str TYPE string.
+    IF gv_select_dates_0100 IS INITIAL.
+      gv_select_dates_0100 = abap_true.
+      gr_calendar_0100->set_visible( 'X' ).
+    ELSE.
+      CLEAR gv_select_dates_0100.
+      gr_calendar_0100->set_visible( '' ).
+    ENDIF.
+
+    IF mv_acc_mode = space.
+      gr_document->initialize_document( ).
+      PERFORM f_fill_document.
+*********  note 2164180
+      PERFORM f_update_calendar_0100.
+* merge documents
+      CALL METHOD gr_document->merge_document.
+* display documents
+      CALL METHOD gr_document->display_document
+        EXPORTING
+          reuse_control      = 'X'
+          reuse_registration = 'X'.
+      PERFORM f_adjust_splitter_size USING abap_false.  "Note 2724928
+
+    ELSE.
+
+
+
+*      IF gv_select_dates_0100 IS INITIAL.
+*        CLEAR: gv_date_end_0100,gv_date_begin_0100.
+*      ELSE.
+**      gv_date_begin_0100 = sy-datum - 14.
+**      gv_date_end_0100 = sy-datum.
+*      ENDIF.
+
+      gr_document->initialize_document( ).
+      PERFORM f_fill_document_acc_mode.
+*********  note 2164180
+      PERFORM f_update_calendar_0100.
+* merge documents
+      CALL METHOD gr_document->merge_document.
+* display documents
+      CALL METHOD gr_document->display_document
+        EXPORTING
+          reuse_control      = 'X'
+          reuse_registration = 'X'.
+      PERFORM f_adjust_splitter_size USING abap_false.  "Note 2724928
+
+
+    ENDIF.
+* trigger refreshing
+    PERFORM f_update_tree_0100.
+    IF gv_select_dates_0100 = abap_true.
+      lv_msg_str = TEXT-207.
+    ELSE.
+      lv_msg_str = TEXT-208.
+    ENDIF.
+    MESSAGE s000(/aif/mes) WITH TEXT-221  lv_msg_str.
+  ENDMETHOD.                    "handle_selectdt_buttons
+  METHOD handle_disperr_buttons.
+    DATA lv_msg_string TYPE string.
+    IF gv_only_errors_0100 IS INITIAL.
+      gv_only_errors_0100 = 'X'.
+    ELSE.
+      CLEAR gv_only_errors_0100.
+    ENDIF.
+    on_new_resources( ).
+* trigger refreshing
+    PERFORM f_update_tree_0100.
+    IF gv_only_errors_0100 = 'X'.
+      lv_msg_string = TEXT-205.
+    ELSE.
+      lv_msg_string = TEXT-206.
+    ENDIF.
+    MESSAGE s000(/aif/mes) WITH TEXT-220  lv_msg_string.
+  ENDMETHOD.                    "handle_disperr_buttons
+  METHOD handle_input.
+    DATA: lv_error     TYPE c,
+          lv_error_tmp TYPE c,
+          lv_date      TYPE sydatum,
+          lv_date_fr   TYPE sydatum,
+          lv_date_to   TYPE sydatum,
+          lv_time_fr   TYPE syuzeit,
+          lv_time_to   TYPE syuzeit,
+          lv_maxerr    TYPE i.
+
+    CASE sender->name.
+      WHEN 'INPUT_BEGINDT' OR 'INPUT_ENDDT' OR 'INPUT_BEGINTM' OR 'INPUT_ENDTM'.
+        PERFORM f_date_validation USING    gv_input_begindt->value
+                                  CHANGING lv_error_tmp
+                                           lv_date_fr.
+        IF lv_error_tmp IS INITIAL.
+          gv_date_begin_0100 = lv_date_fr.
+        ELSE.
+          lv_error = lv_error_tmp.
+          CLEAR gv_date_begin_0100.
+        ENDIF.
+        PERFORM f_date_validation USING    gv_input_enddt->value
+                                  CHANGING lv_error_tmp
+                                           lv_date_to.
+        IF lv_error_tmp IS INITIAL.
+          gv_date_end_0100 = lv_date_to.
+        ELSE.
+          lv_error = lv_error_tmp.
+          CLEAR gv_date_end_0100.
+        ENDIF.
+        DATA(lv_dbsys) = /aif/if_globals=>gc_hdb_sys.
+        IF sy-dbsys = lv_dbsys.
+          PERFORM f_time_validation USING gv_input_begintm->value
+                                    CHANGING lv_error_tmp
+                                             lv_time_fr.
+          IF lv_error_tmp IS INITIAL.
+            gv_time_begin_0100 = lv_time_fr.
+          ELSE.
+            lv_error = lv_error_tmp.
+            CLEAR gv_time_begin_0100.
+          ENDIF.
+          PERFORM f_time_validation USING gv_input_endtm->value
+                                    CHANGING lv_error_tmp
+                                             lv_time_to.
+          IF lv_error_tmp IS INITIAL.
+            gv_time_end_0100 = lv_time_to.
+          ELSE.
+            lv_error = lv_error_tmp.
+            CLEAR gv_time_end_0100.
+          ENDIF.
+        ELSE.
+          lv_time_fr = '000000'.
+          lv_time_to = '235959'.
+        ENDIF.
+        IF lv_error IS INITIAL.
+          PERFORM f_date_validation_more USING    lv_date_fr
+                                                  lv_date_to
+                                                  lv_time_fr
+                                                  lv_time_to
+                                         CHANGING lv_error_tmp.
+        ENDIF.
+        PERFORM f_update_calendar_0100.
+        PERFORM f_update_tree_0100.
+*      WHEN 'INPUT_ENDDT'.
+*        PERFORM f_date_validation USING gv_input_enddt->value
+*                                          CHANGING lv_error
+*                                                   lv_date.
+*        IF lv_error IS INITIAL.
+*          gv_date_end_0100 = lv_date.
+*          PERFORM f_update_calendar_0100.
+** trigger refreshing
+*          PERFORM f_update_tree_0100.
+*        ENDIF.
+      WHEN 'INPUT_MAXERR'.
+        PERFORM f_number_validation USING gv_input_maxerr->value
+                                           CHANGING lv_error
+                                                    lv_maxerr.
+        IF lv_error IS INITIAL.
+          gv_max_0100 = lv_maxerr.
+        ENDIF.
+
+*<<<Begin of Note 2724928
+        DATA lv_value TYPE sdydo_value.
+        lv_value = gv_max_0100.
+        CONDENSE lv_value NO-GAPS.
+        CALL METHOD gv_input_maxerr->set_value
+          EXPORTING
+            value = lv_value.
+        CALL METHOD gr_document->merge_document.
+        CALL METHOD gr_document->display_document
+          EXPORTING
+            reuse_control      = 'X'
+            reuse_registration = 'X'.
+*<<<End of Note 2724928
+*      WHEN 'TIMER_INTERVAL'.
+*        PERFORM f_number_validation USING gv_timer_interval->value
+*                                           CHANGING lv_error
+*                                                    lv_maxerr.
+*        IF lv_error IS INITIAL.
+*          gv_timer_interval_0100 = lv_maxerr.
+*          gr_timer_0100->interval = lv_maxerr.
+*
+*          IF gv_timer_interval_0100 > 0.
+*            gr_timer_0100->cancel( ).
+*            gr_timer_0100->interval = gv_timer_interval_0100.
+*            gr_timer_0100->run( ).
+*          ENDIF.
+*        ENDIF.
+      WHEN OTHERS.
+    ENDCASE.
+  ENDMETHOD.                    "handle_begindt_input
+ENDCLASS.                    "lcl_evt_handler IMPLEMENTATION
