@@ -1,0 +1,21 @@
+import com.sap.gateway.ip.core.customdev.util.Message;
+import java.util.HashMap;
+import groovy.json.*
+import java.lang.*;
+
+
+def Message processData (Message message) {
+
+//to get message body as string
+def jsonbody= message.getBody(java.lang.String) as String;
+
+//to parse incoming JSON payload to extract required data
+def jsonSlurper= new JsonSlurper();
+def jsonDataObject = jsonSlurper.parseText(jsonbody);
+
+//to get the object ID containing Delivery Document and Sales order Number from event 
+message.setProperty("DeliveryDocumentSalesOrder",jsonDataObject.data.objectId);
+
+
+return message;
+}

@@ -1,0 +1,43 @@
+/* Refer the link below to learn more about the use cases of script.
+https://help.sap.com/viewer/368c481cd6954bdfa5d0435479fd4eaf/Cloud/en-US/148851bf8192412cba1f9d2c17f4bd25.html
+
+If you want to know more about the SCRIPT APIs, refer the link below
+https://help.sap.com/doc/a56f52e1a58e4e2bac7f7adbf45b2e26/Cloud/en-US/index.html */
+import com.sap.gateway.ip.core.customdev.util.Message;
+import java.util.HashMap;
+import java.nio.charset.StandardCharsets
+import java.nio.charset.Charset
+
+
+def Message processData(Message message) {
+
+	//retrieves the body of the input message as a byte array
+	byte[] body = message.getBody((byte[]).class);
+
+	//converts the byte array obtained from the message body into a string using the ISO-8859-1 encoding
+	def iso8859_1EncodedString = new String(body, StandardCharsets.ISO_8859_1);
+
+	//converts the ISO-8859-1 encoded string into a byte array using the UTF-8 encoding
+	byte[] bytes1 =  iso8859_1EncodedString.getBytes(StandardCharsets.UTF_8);
+
+	//converts the UTF-8 encoded byte array back into a string
+	String utf8EncodedString = new String(bytes1, StandardCharsets.UTF_8);
+
+   
+	//get all Properties in the message
+	def properties = message.getProperties();
+
+	//calculates the length of the UTF-8 encoded string in bytes
+	def byteLength = utf8EncodedString.getBytes().length;
+
+	//constructs a string representing the byte range of the message body
+	def range= "bytes=0-"+(byteLength-1);
+ 
+
+	//set required properties
+	message.setProperty("x-ms-range",range);
+	message.setProperty("byteLength",byteLength);
+	//  message.setBody(utf8EncodedString)
+	message.setProperty("payload",utf8EncodedString);
+	return message;
+}

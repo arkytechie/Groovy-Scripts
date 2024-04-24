@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<CustomAlerts >
+  <Entity>${header.Entity}</Entity>
+  <Severity>FATAL</Severity>
+  <Category>ALERT</Category>
+  <ArtifactName>${header.iFlowName}</ArtifactName>
+<ArtifactPackageName>CP008</ArtifactPackageName>
+<IntegrationFlowUrl>https://${header.tenantUrl}/shell/monitoring/MessageDetails/%7B%22messageGuid%22:%22${header.parentMPLId}%22%7D</IntegrationFlowUrl>  
+<MessageID>${header.parentMPLId}</MessageID>
+  <Subject>Business Alert CP008 - IF005 </Subject>
+  <ErrorMessage><![CDATA[${header.errorMessage}]]></ErrorMessage>
+<CustomTags>
+		<tag>
+			<name>CompanyCode</name>
+			<value>${header.companyCode}</value>
+		</tag>
+		<tag>
+			<name>FileName</name>
+			<value><![CDATA[${header.attachmentFileName}]]></value>
+		</tag>
+                <tag>
+			<name>userMail</name>
+			<value>${header.userMailAddress}</value>
+		</tag>
+ <tag>
+			<name>customSubject</name>
+			<value><![CDATA[${header.customMailSubject}]]></value>
+		</tag>
+	</CustomTags>
+</CustomAlerts>
+
+
