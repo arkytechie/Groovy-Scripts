@@ -1,0 +1,96 @@
+import groovy.json.JsonSlurper
+import com.sap.gateway.ip.core.customdev.util.Message
+
+ 
+
+def Message processData(Message message) {
+    def body = message.getBody(String)
+    def properties = message.getProperties()
+    def jsonSlurper = new JsonSlurper()
+    def list = jsonSlurper.parseText(body as String)
+    def materialNumber = properties.get("materialNumber")
+    def output = ""
+def data = list.A_MaterialDocumentHeader.A_MaterialDocumentHeaderType.to_MaterialDocumentItem.A_MaterialDocumentItemType
+if(data instanceof ArrayList){
+    data.each { it ->
+        // Initialize FieldList for each iteration
+        def FieldList = []
+
+        if (it.EntryUnit == "") {
+            FieldList.add("Entry Unit")
+        }
+        if (it.ZZ1_ProductOldID_COB == "") {
+            FieldList.add("ProductOldID")
+        }
+        if (it.CompanyCodeCurrency == "") {
+            FieldList.add("CompanyCodeCurrency")
+        }
+        if (it.PurchaseOrderItem == "") {
+            FieldList.add("PurchaseOrderItem")
+        }
+        if (it.PurchaseOrder == "") {
+            FieldList.add("PurchaseOrder")
+        }
+        if (it.QuantityInEntryUnit == "") {
+            FieldList.add("QuantityInEntryUnit")
+        }
+        if (it.Plant == "") {
+            FieldList.add("Plant")
+        }
+        if (it.ZZ1_PostingDate_COB == "") {
+            FieldList.add("Posting Date")
+        }
+        if (it.ZZ1_PlantInfo_COB == "") {
+            FieldList.add("PlantInfo")
+        }
+
+        // Check if FieldList is not empty for this line item
+        if (!FieldList.isEmpty()) {
+            output += FieldList.join(', ') + " doesn't have a value for line item number: " + it.MaterialDocumentItem + "\n<br></br>"
+        }
+    }
+}
+else
+{
+     def FieldList = []
+     if (data.EntryUnit == "") {
+            FieldList.add("EntryUnit")
+        }
+        if (data.ZZ1_ProductOldID_COB == "") {
+            FieldList.add("ProductOldID")
+        }
+        if (data.CompanyCodeCurrency == "") {
+            FieldList.add("CompanyCodeCurrency")
+        }
+        if (data.PurchaseOrderItem == "") {
+            FieldList.add("PurchaseOrderItem")
+        }
+        if (data.PurchaseOrder == "") {
+            FieldList.add("PurchaseOrder")
+        }
+        if (data.QuantityInEntryUnit == "") {
+            FieldList.add("QuantityInEntryUnit")
+        }
+        if (data.Plant == "") {
+            FieldList.add("Plant")
+        }
+        if (data.ZZ1_PostingDate_COB == "") {
+            FieldList.add("Posting Date")
+        }
+        if (data.ZZ1_PlantInfo_COB == "") {
+            FieldList.add("PlantInfo")
+        }
+        if (!FieldList.isEmpty()) {
+            output += FieldList.join(', ') + " doesn't have a value for line item number: " + data.MaterialDocumentItem + "\n<br></br>"
+        }
+}
+
+    message.setHeader("missingField", output)
+
+    if (!output.isEmpty()) {
+
+        throw new Exception(output)
+    }
+
+    return message
+}

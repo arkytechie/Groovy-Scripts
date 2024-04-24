@@ -1,0 +1,51 @@
+import com.sap.gateway.ip.core.customdev.util.Message;
+import java.util.HashMap;
+//import groovy.xml.*;
+import com.sap.it.api.ITApiFactory;
+import com.sap.it.api.mapping.ValueMappingApi;
+
+def Message processData(Message message) {
+    //Body
+     def body = message.getBody(java.lang.String);
+   
+    def properties = message.getProperties();
+    def  transactionTypeGroup = properties.get("TransactionTypeGroup");
+    def incomingPaymentFileType = properties.get("incomingPaymentFileType");
+    def key = incomingPaymentFileType+"|"+transactionTypeGroup
+    
+   /* if(incomingPaymentFileType = "B")
+    {
+        message.setProperty("mailSubject","Objet : Electronic Bank Statement error / Relevé de compte en erreur")
+        message.setProperty("mailBodyEn","The electronic bank statement file ")
+        message.setProperty("mailBody","Le relevé de compte électronique numéro de fichier ")
+    }
+    else if(incomingPaymentFileType = "L")
+    {
+        message.setProperty("mailSubject","Objet : Electronic Bank Statement error / Relevé de compte en erreur")
+        message.setProperty("mailBody","The electronic bank statement file")
+    }*/
+     
+    def service = ITApiFactory.getApi(ValueMappingApi.class, null);
+    def userMailAddress
+    def mailDetails
+   // def tokenValues = [];
+    if( service != null){
+        
+        userMailAddress = service.getMappedValue("S4HANA", "SlugDetail", key, "Trax", "userMailAddress");
+        mailDetails = service.getMappedValue("S4HANA", "SlugDetail", key, "Trax", "mailDetails");
+    }
+     if((userMailAddress == null || userMailAddress.equals("")) || (mailDetails == null || mailDetails.equals(""))  )
+   {
+       throw new Exception("userMailAddress or Mail Details not found in Value Mapping for corresponding TransactionTypeGroup")
+   }
+   else
+   {
+        message.setProperty("userMailAddress",userMailAddress);
+        def tokenValues = mailDetails.split("\\|",-1)
+        message.setProperty("mailSubject",tokenValues[0])
+        message.setProperty("mailBodyEn",tokenValues[1])
+        message.setProperty("mailBody",tokenValues[2])
+        
+   }
+    return message;
+}

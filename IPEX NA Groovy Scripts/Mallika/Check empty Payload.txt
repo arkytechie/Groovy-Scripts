@@ -1,0 +1,16 @@
+import com.sap.gateway.ip.core.customdev.util.Message;
+import java.util.HashMap;
+def Message processData(Message message) {
+  
+    //Headers
+    def properties = message.getProperties();
+      def odataPayload = properties.get("odataPayload");
+      def materialNumber = properties.get("materialNumber");
+                                    
+                                    
+      if(odataPayload.equals("<A_MaterialDocumentHeader/>"))
+    {
+        throw new Exception("Missing Payload for Goods Receipt document number: " + materialNumber + " in S4");
+    }
+    return message;
+}

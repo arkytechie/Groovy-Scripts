@@ -1,0 +1,27 @@
+import com.sap.gateway.ip.core.customdev.util.Message;
+
+import groovy.xml.*;
+
+import groovy.json.*;
+
+import java.util.HashMap;
+
+
+
+def Message processData(Message message) {
+
+
+ def map = message.getProperties();
+                
+                // get an exception java class instance
+                def ex = map.get("CamelExceptionCaught");
+    if(ex !=null)
+    {
+  //  def  key = exceptionMessage.get("h_exceptionMessage");
+
+    message.setHeader("h_exceptionMessage", groovy.xml.XmlUtil.escapeXml(ex.getMessage()));
+    }
+   return message;
+
+}
+

@@ -1,0 +1,29 @@
+import com.sap.gateway.ip.core.customdev.util.Message;
+import java.util.HashMap;
+    
+def Message processData(Message message) {
+    def body = message.getBody(String);
+    
+    def map = message.getHeaders()
+    def httpPath = map.get("CamelHttpUrl")
+
+    def target
+    if (httpPath != null) {
+        httpPath = httpPath.toUpperCase()
+
+        if (httpPath.contains("UPS")) {
+            target = "UPS"
+        } else if (httpPath.contains("DHL")) {
+            target = "DHL"
+        } else if (httpPath.contains("PUROLATOR")) {
+            target = "PUROLATOR"
+        } else {
+            target = "NotFound"
+        }
+    } else {
+        target = "NotFound"
+    }
+
+    message.setHeader("Target", target)
+    return message
+}

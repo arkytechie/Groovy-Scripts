@@ -1,0 +1,24 @@
+import com.sap.gateway.ip.core.customdev.util.Message;
+import java.util.HashMap;
+def Message processData(Message message) {
+    //Body
+    map = message.getProperties();
+     def map1 = message.getHeaders();
+     def mailAlertDate = map1.get("mailAlertDate");
+     def SAP_ErrorModelStepID = map.get("SAP_ErrorModelStepID");
+
+                
+    if(SAP_ErrorModelStepID.equals("CallActivity_60"))
+    {
+            //message.setProperty("Subject", "INT.115 - Send Raw Material Info for Compounds from S4 to PIM");
+    def body = message.setBody("Dear Team,<br><br>"+"\n\n\n" + "Please note that on "  + mailAlertDate + "<br><br>" + "There was an error in translation and application document was not posted in target system.<br><br><b>CPI team</b>");
+   
+}
+
+else if (SAP_ErrorModelStepID.equals("CallActivity_1069"))
+{
+    def body = message.setBody("Dear Team,<br><br>Please note that on " + mailAlertDate + "<br><br>" + "There was an error in transmission and application document was not posted in target system.<br><br><b>CPI team</b>");
+
+}
+    return message;
+}

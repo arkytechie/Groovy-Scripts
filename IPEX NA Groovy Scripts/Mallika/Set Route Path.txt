@@ -1,0 +1,33 @@
+import com.sap.gateway.ip.core.customdev.util.Message;
+import java.util.HashMap;
+import com.sap.it.api.ITApiFactory;
+import com.sap.it.api.mapping.ValueMappingApi;
+
+def Message processData(Message message) {
+    //Body
+    def body = message.getBody(java.lang.String);
+    def properties = message.getProperties();
+    def plant = properties.get("Plant")
+    def  key = properties.get("STATUSCODE")+"|"+properties.get("STOCKTYPE")+"|"+properties.get("Plant")
+    def service = ITApiFactory.getApi(ValueMappingApi.class, null);
+    def keyValue
+    if( service != null){
+        
+        keyValue = service.getMappedValue("Intellitrans", "RouteInput", key, "S4HANA", "RoutePath");
+    }
+   if(keyValue == null || keyValue.equals(""))
+   {
+       //throw new Exception("details not found in value mapping ");
+       message.setHeader("routepath","")
+   }
+   else
+   {
+       
+        message.setHeader("routepath",keyValue)
+   }
+
+  //  message.setProperty("oldProperty", value + " modified");
+  
+    return message;
+
+}

@@ -1,0 +1,21 @@
+import com.sap.gateway.ip.core.customdev.util.Message;
+import java.util.HashMap;
+import groovy.json.*
+import java.lang.*;
+ def Message processData (Message message) {
+
+def jsonbody= message. getBody (java.lang.String) as String;
+def jsonSlurper= new JsonSlurper();
+def jsonDataObject = jsonSlurper.parseText(jsonbody);
+message.setProperty("deliveryDocument",jsonDataObject.data.objectId);
+ // def properties = message.getProperties();
+  //fetching material year
+/*materialId = properties.get("mnumber");
+materialYear = materialId.substring(materialId.length()-4)
+message.setHeader("materialYear",materialYear);
+
+//fetching material Number
+materialNumber = materialId.substring(0,materialId.length()-4);
+message.setHeader("materialNumber",materialNumber);*/
+return message;
+}

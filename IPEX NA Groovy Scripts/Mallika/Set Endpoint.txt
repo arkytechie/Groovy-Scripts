@@ -1,0 +1,17 @@
+import com.sap.gateway.ip.core.customdev.util.Message;
+import java.util.HashMap;
+def Message processData(Message message) {
+    //Body
+    def body = message.getBody(java.lang.String) as String;
+    
+    if(body.contains("<S4toloftware>"))
+    {
+         message.setProperty("jmsurl1", "CP026_IF001_LoftwareItem");
+    }
+    if(body.contains("<S4Pim>"))
+    {
+        message.setProperty("jmsurl2", "CP014_IF002_PIMItem");
+    }
+   
+    return message;
+}

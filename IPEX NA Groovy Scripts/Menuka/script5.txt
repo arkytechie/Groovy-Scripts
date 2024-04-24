@@ -1,0 +1,31 @@
+import com.sap.gateway.ip.core.customdev.util.Message;
+import java.util.HashMap;
+import java.nio.charset.StandardCharsets
+import java.nio.charset.Charset
+def Message processData(Message message) {
+    //Body
+    
+ byte[] body = message.getBody((byte[]).class);
+ 
+ 
+    def iso8859_1EncodedString = new String(body, StandardCharsets.ISO_8859_1);
+  
+  byte[] bytes1 =  iso8859_1EncodedString.getBytes(StandardCharsets.UTF_8);
+  String utf8EncodedString = new String(bytes1, StandardCharsets.UTF_8);
+
+   
+    //Properties
+   def properties = message.getProperties();
+   
+    def byteLength = utf8EncodedString.getBytes().length
+
+  def range= "bytes=0-"+(byteLength-1)
+ 
+
+  message.setProperty("x-ms-range",range)
+
+  message.setProperty("byteLength",byteLength)
+ //  message.setBody(utf8EncodedString)
+ message.setProperty("payload",utf8EncodedString)
+    return message;
+}

@@ -1,0 +1,32 @@
+import com.sap.gateway.ip.core.customdev.util.Message;
+import java.util.HashMap;
+def Message setCustomHeaders(Message message) {
+    
+   	def messageLog = messageLogFactory.getMessageLog(message);
+	if(messageLog != null){
+        //Set custom error
+		def ALXS_Entity = message.getProperties().get("ALXS_Entity");
+
+	    messageLog.addCustomHeaderProperty("ALXS_Entity", ALXS_Entity);	
+
+	    
+	}
+
+    return message;
+
+}
+
+def Message addEscalationReason(Message message) {
+
+    def messageLog = messageLogFactory.getMessageLog(message);
+    if(messageLog != null){
+        
+        def escalationReason = message.getProperties().get("EscalationReason");
+        if(escalationReason!=null){
+            /*Custom header for escalation reasons*/
+            messageLog.addCustomHeaderProperty("EscalationReason", escalationReason);
+        }
+    }
+    
+    return message;
+}

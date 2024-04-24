@@ -1,0 +1,35 @@
+import com.sap.gateway.ip.core.customdev.util.Message;
+import java.util.HashMap;
+import com.sap.it.api.ITApiFactory;
+import com.sap.it.api.mapping.ValueMappingApi;
+
+def Message processData(Message message) {
+    //Body
+    def body = message.getBody(java.lang.String);
+    def properties = message.getProperties();
+
+    def filename = properties.get("FileName")
+    def key = filename.substring(14,20);
+    
+    message.setProperty("InterfaceID", key);
+    
+    def service = ITApiFactory.getApi(ValueMappingApi.class, null);
+    def keyValue
+    if( service != null){
+        
+        keyValue = service.getMappedValue("Infoflo", "InterfaceID", key, "S4HANA", "IFlowID");
+    }
+    if(keyValue == null || keyValue.equals(""))
+    {
+       throw new Exception("Interface ID is missing");
+
+    }
+    else
+    {
+        
+    message.setProperty("FlowID",keyValue)
+    
+    }
+    return message;
+
+}

@@ -1,0 +1,35 @@
+import com.sap.gateway.ip.core.customdev.util.Message
+import groovy.json.JsonOutput
+import groovy.json.JsonSlurper
+ 
+def Message processData(Message message) {
+    def jsonPayload = message.getBody(java.lang.String) as String
+    def jsonSlurper = new JsonSlurper()
+    def jsonDataObject = jsonSlurper.parseText(jsonPayload)
+ 
+    // Recursively traverse the JSON structure and escape double quotes
+    def escapedPayload = escapeDoubleQuotes(jsonDataObject)
+ 
+    // Convert the escaped payload back to JSON string
+    def jsonString = new JsonOutput().toJson(escapedPayload)
+ 
+    // Add backslashes before double quotes
+    jsonString = jsonString.replaceAll(/"/, '\\\\"')
+ 
+    // Set the rearranged JSON string as the message body
+    message.setBody(jsonString)
+    return message
+}
+ 
+// Function to recursively escape double quotes in JSON data
+def escapeDoubleQuotes(data) {
+    if (data instanceof Map) {
+        data.collectEntries { key, value ->
+            [(key): escapeDoubleQuotes(value)]
+        }
+    } else if (data instanceof List) {
+        data.collect { escapeDoubleQuotes(it) }
+    } else {
+        data
+    }
+}

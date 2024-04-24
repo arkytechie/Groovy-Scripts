@@ -1,0 +1,40 @@
+/* This script is used to determine the next iFlow to be called by the ProcessDirect step
+
+Change Log:
+
+*/
+import com.sap.gateway.ip.core.customdev.util.Message;
+import java.util.HashMap;
+import com.sap.it.api.ITApiFactory;
+import com.sap.it.api.mapping.ValueMappingApi;
+def Message processData(Message message) {
+   
+    def body = message.getBody(java.lang.String)
+    def xml  = new XmlSlurper().parseText(body);
+    def Sndprn = xml.IDOC.EDI_DC40.SNDPRN.text()
+   // def Rcvprn = xml.IDOC.EDI_DC40.RCVPRN.text()
+    def Mestyp = xml.IDOC.EDI_DC40.MESTYP.text()
+    def IDoctyp = xml.IDOC.EDI_DC40.IDOCTYP.text()
+    def Cimtyp = xml.IDOC.EDI_DC40.CIMTYP.text()
+    
+    // Set key using Sender Partner, Msg Type, IDoc Type, IDoc Custom Type
+  //  def key = Sndprn+"|"+Mestyp+"|"+IDoctyp+"|"+Cimtyp+"|"+Rcvprn
+  def key = Sndprn+"|"+Mestyp+"|"+IDoctyp+"|"+Cimtyp
+    message.setProperty("Key", key)
+    
+    //Use the key in the value mapping to determine the name of the iFlow
+    def service = ITApiFactory.getApi(ValueMappingApi.class, null);
+    def mappedValue
+    if( service != null){
+        
+        mappedValue = service.getMappedValue("IDOC", "SENDER", key, "PROCESSDIRECT", "RECEIVER");
+    }
+    else
+    {
+        throw new Exception("Could not determine main flow for the IDOC based on control fields")
+    }
+     
+    //Set Header Key "iflow_id" with the value determine from the ValueMap, this will be used in the ProcessDirect step
+    message.setHeader("iflow_id",mappedValue);
+    return message;
+}

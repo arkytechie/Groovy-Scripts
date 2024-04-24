@@ -1,0 +1,41 @@
+import com.sap.gateway.ip.core.customdev.util.Message;
+import java.util.HashMap;
+def Message processData(Message message) {
+	def body = message.getBody(java.lang.String) as String;
+	//Properties 
+    def logPayload = message.getProperties().get("LogPayload");
+ 
+	//headers
+    def fileName = message.getHeaders().get("CamelFileName")                    //Get filename from Runtime header
+    def messageLog = messageLogFactory.getMessageLog(message);                  //Get Messagelog from message
+    messageLog?.addCustomHeaderProperty("FileNames:", fileName)                 //Create customerHeaders and assign the filename
+	  if(fileName.contains("Org")) {
+		message.setProperty("Org","O");
+	  }
+	  else {
+		message.setProperty("Org","E");
+	  }
+	  /*
+      if (value == ("WD to SAP - MiniMaster - Org*.xml") || value == ("WD to SAP - MiniMaster - Employee*.xml") )
+      {
+          Org="X";
+      }else if (value.contains("Org"))
+      {
+          Org="Y";
+      }
+      else
+      {
+          Org ="F";
+      }
+	  */  
+ 
+ 
+	//To log the paylaod
+    if(messageLog != null){
+        if(logPayload == "true"){
+        messageLog.setStringProperty("Logging#1", "Printing Payload As Attachment")
+        messageLog.addAttachmentAsString(fileName, body, "text/plain");
+     }
+    }
+    return message;
+}

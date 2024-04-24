@@ -1,0 +1,12 @@
+import com.sap.gateway.ip.core.customdev.util.Message;
+import java.util.HashMap;
+def Message processData(Message message) {
+
+    //Properties
+    def properties = message.getProperties();
+    input = properties.get("Filename");
+    def date = input.substring((input.lastIndexOf("_")+1),input.lastIndexOf("_")+9);
+    message.setProperty("FileCreationDate",date);
+    
+    return message;
+}

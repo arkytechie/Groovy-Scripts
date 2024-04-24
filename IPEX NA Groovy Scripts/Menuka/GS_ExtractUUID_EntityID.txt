@@ -1,0 +1,34 @@
+import com.sap.gateway.ip.core.customdev.util.Message;
+import java.util.HashMap;
+def Message processData(Message message) {
+   
+   def BusinessObjectID;
+    //Headers
+    def headers = message.getHeaders();
+    def value = headers.get("OData-EntityId");
+
+
+// Split the input string by '/'
+def parts = value.split('/')
+
+// Find the last part and extract the value before '('
+def Entity = parts[-1].replaceAll(/\(.*/, '')
+
+message.setProperty("Entity", Entity)
+def Odata_entityId = value.split(/[()]/)
+
+// Check if there are at least two parts (before and after the brackets)
+if (Odata_entityId.size() >= 2) {
+    BusinessObjectID = Odata_entityId[1]
+    message.setProperty("Zuid", BusinessObjectID);
+    //if(Entity == "accounts"){
+  //  message.setHeader("AccountZuID", BusinessObjectID);
+  //  }
+} 
+else {
+    message.setProperty("Zuid", "");
+}
+
+
+    return message;
+}

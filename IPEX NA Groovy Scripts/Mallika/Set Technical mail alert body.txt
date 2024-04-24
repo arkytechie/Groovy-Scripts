@@ -1,0 +1,40 @@
+import com.sap.gateway.ip.core.customdev.util.Message;
+import java.util.HashMap;
+
+def Message processData(Message message) {
+    //Body 
+       def body = message.getBody();
+       
+def map = message.getHeaders();
+  String sExceptionMessage = map.get("exceptionMessage");
+  String sParentMPLId = map.get("parentMPLId");
+  String siFlowName = map.get("iFlowName");
+  
+  map = message.getProperties();
+  String CPITenantURL1 = map.get("tenant_url");
+ //String UrlPart3 = '{"messageGuid":"';    
+ // String UrlPart4 = '"}';
+  
+ //      if(UrlPart3 != null || sParentMPLId != null ||  UrlPart4 != null){
+ //        CPITenantURL = "https://" + CPITenantURL1 + "/itspaces/shell/monitoring/MessageDetails/" + "%7B%22messageGuid%22:%22" + sParentMPLId + "%22%7D";
+ //    }
+         
+       if(sParentMPLId != null){
+         CPITenantURL = "https://" + CPITenantURL1 + "/itspaces/shell/monitoring/MessageDetails/" + "%7B%22messageGuid%22:%22" + sParentMPLId + "%22%7D";
+       }
+       
+       if(CPITenantURL != null){
+         message.setProperty("EPTenantURL", CPITenantURL);
+       }
+       if(sExceptionMessage != null){
+         message.setProperty("EPExceptionMessage", sExceptionMessage);
+       }
+ 
+       if(sParentMPLId != null){
+         message.setProperty("EPParentMPLId", sParentMPLId);
+       }
+       if(siFlowName != null){
+         message.setProperty("EPiFlowName", siFlowName);
+       }
+       return message;
+} 

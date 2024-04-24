@@ -1,0 +1,170 @@
+import com.sap.gateway.ip.core.customdev.util.Message;
+import java.util.HashMap;
+import groovy.xml.*;
+
+def Message processData(Message message) {
+    def map = message.getProperties();
+    def fileName = message.getHeaders().get("CamelFileName");
+    //def property_ENABLE_PAYLOAD_LOGGING = map.get("ENABLE_PAYLOAD_LOGGING");
+    //if (property_ENABLE_PAYLOAD_LOGGING.toUpperCase().equals("TRUE")) {
+    def body = message.getBody(java.lang.String) as String;
+    def messageLog = messageLogFactory.getMessageLog(message);
+    if (messageLog != null) {
+        messageLog.addAttachmentAsString("CSV data send to S4- Payload:", body, "text/xml");
+    }
+
+    def writer = new StringWriter();
+    def ZRef_TableSet = new MarkupBuilder(writer);
+
+    ZRef_TableSet.ZRef_TableSet {
+        def lines = body.split('\n');
+		ZRef_Table {
+			Serialno 1;
+			ZrefitSet {
+        lines.eachWithIndex{ln, index ->
+            
+                def objts = ln.split('\t',-1);
+
+                String emp = "";
+                def Sno = index + 1;
+                
+                if(objts.size() > 1){
+					
+				
+                    ZRef_item {
+                        if (ln.startsWith('H')) {
+                            Serialno Sno.toString();
+                            Field1 objts[0]!= null ? objts[0]:emp.toString();
+                            Field2 objts[1]!= null ? objts[1]:emp.toString();
+                            Field3 objts[2]!= null ? objts[2]:emp.toString();
+                            Field4 objts[3]!= null ? objts[3]:emp.toString();
+                            Field5 objts[4]!= null ? objts[4]:emp.toString();
+                            Field6 objts[5]!= null ? objts[5]:emp.toString();
+                            Field7 objts[6]!= null ? objts[6]:emp.toString();
+                            Field8 objts[7]!= null ? objts[7]:emp.toString();
+                            Field9 objts[8]!= null ? objts[8]:emp.toString();
+                            Field10 fileName.toString();
+                            Field11 emp.toString();
+                            Field12 emp.toString();
+                            Field13 emp.toString();
+                            Field14 emp.toString();
+                            Field15 emp.toString();
+                            Field16 emp.toString();
+                            Field17 emp.toString();
+                            Field18 emp.toString();
+                            Field19 emp.toString();
+                            Field20 emp.toString();
+                            Field21 emp.toString();
+                            Field22 emp.toString();
+
+
+                        }else if (ln.startsWith('I')) {
+							if(objts.size() < 15){
+								messageLog.addAttachmentAsString("ResponsePayload:", ln.toString(), "text/plain");
+								throw new Exception("test");
+							}
+                            Serialno Sno.toString();
+                            Field1 objts[0]!= null ? objts[0]:emp.toString();
+                            Field2 objts[1]!= null ? objts[1]:emp.toString();
+                            Field3 objts[2]!= null ? objts[2]:emp.toString();
+                            Field4 objts[3]!= null ? objts[3]:emp.toString();
+                            Field5 objts[4]!= null ? objts[4]:emp.toString();
+                            Field6 objts[5]!= null ? objts[5]:emp.toString();
+                            Field7 objts[6]!= null ? objts[6]:emp.toString();
+                            Field8 objts[7]!= null ? objts[7]:emp.toString();
+                            Field9 objts[8]!= null ? objts[8]:emp.toString();
+                            Field10 objts[9]!= null ? objts[9]:emp.toString();
+                            Field11 objts[10]!= null ? objts[10]:emp.toString();
+                            Field12 objts[11]!= null ? objts[11]:emp.toString();
+                            Field13 objts[12]!= null ? objts[12]:emp.toString();
+                            Field14 objts[13]!= null ? objts[13]:emp.toString();
+                            Field15 objts[14]!= null ? objts[14]:emp.toString();
+                            Field16 objts[15]!= null ? objts[15]:emp.toString();
+                            Field17 objts[16]!= null ? objts[16]:emp.toString();
+                            Field18 objts[17]!= null ? objts[17]:emp.toString();
+                            Field19 objts[18]!= null ? objts[18]:emp.toString();
+                            Field20 objts[19]!= null ? objts[19]:emp.toString();
+                            Field21 objts[20]!= null ? objts[20]:emp.toString();
+                            Field22 objts[21]!= null ? objts[21]:emp.toString();
+                            Field23 objts[22]!= null ? objts[22]:emp.toString();
+                            Field24 objts[23]!= null ? objts[23]:emp.toString();
+                            Field25 objts[24]!= null ? objts[24]:emp.toString();
+                            Field26 objts[25]!= null ? objts[25]:emp.toString();
+                            // Field23 emp.toString();
+
+
+                        }else 
+                        /*
+                        if (ln.startsWith('F')) {
+								Serialno Sno.toString();
+								Field1 objts[0] != null ? objts[0] : emp.toString();
+								Field2 objts[1] != null ? objts[1] : emp.toString();
+								Field3 objts[2] != null ? objts[2] : emp.toString();
+								Field4 objts[3] != null ? objts[3] : emp.toString();
+								Field5 objts[4] != null ? objts[4] : emp.toString();
+								Field6 objts[5] != null ? objts[5] : emp.toString();
+								Field7 objts[6] != null ? objts[6] : emp.toString();
+								Field8 objts[7] != null ? objts[7] : emp.toString();
+								Field9 objts[8] != null ? objts[8] : emp.toString();
+								Field10 objts[9] != null ? objts[9] : emp.toString();
+								Field11 objts[10] != null ? objts[10] : emp.toString();
+								Field12 objts[11] != null ? objts[11] : emp.toString();
+								Field13 objts[12] != null ? objts[12] : emp.toString();
+								Field14 objts[13] != null ? objts[13] : emp.toString();
+								Field15 objts[14] != null ? objts[14] : emp.toString();
+								Field16 objts[15] != null ? objts[15] : emp.toString();
+								Field17 objts[16] != null ? objts[16] : emp.toString();
+								Field18 objts[17] != null ? objts[17] : emp.toString();
+								Field19 objts[18] != null ? objts[18] : emp.toString();
+								Field20 objts[19] != null ? objts[19] : emp.toString();
+								Field21 objts[20] != null ? objts[20] : emp.toString();
+								Field22 objts[21] != null ? objts[21] : emp.toString();
+								//Field23 objts[22] != null ? objts[22] : emp.toString();
+}*/
+                        
+							if (ln.startsWith('F')) {
+                            Serialno Sno.toString();
+                            Field1 objts[0]!= null ? objts[0]:emp.toString();
+                            Field2 objts[1]!= null ? objts[1]:emp.toString();
+                            Field3 objts[2]!= null ? objts[2]:emp.toString();
+                            Field4 objts[3]!= null ? objts[3]:emp.toString();
+                            Field5 emp.toString();
+                            Field6 emp.toString();
+                            Field7 emp.toString();
+                            Field8 emp.toString();
+                            //Field9 emp.toString();
+                            Field9 fileName.toString();
+                            Field10 emp.toString();
+                            Field11 emp.toString();
+                            Field12 emp.toString();
+                            Field13 emp.toString();
+                            Field14 emp.toString();
+                            Field15 emp.toString();
+                            Field16 emp.toString();
+                            Field17 emp.toString();
+                            Field18 emp.toString();
+                            Field19 emp.toString();
+                            Field20 emp.toString();
+                            Field21 emp.toString();
+                            Field22 emp.toString();
+
+                        }
+                        
+                    }
+					
+					}
+
+                }
+
+            }
+
+
+        }
+
+    }
+
+
+    message.setBody(writer.toString());
+
+    return message;
+}

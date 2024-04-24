@@ -1,0 +1,49 @@
+import com.sap.gateway.ip.core.customdev.util.Message;
+import java.util.HashMap;
+def Message processData(Message message) {
+    def properties = message.getProperties();
+    value = properties.get("file_name");
+    
+    //INT.130 Filename Prefix
+     if(value.endsWith(".xml"))
+     {
+    message.setProperty("FilePrefix",("XXXXX"));
+     }
+     
+     //INT.134 Filename Prefix
+     else if(value.startsWith("IPEX_SCOTIA_CHQI") && (!value.contains("VOID.txt")))
+     {
+    message.setProperty("FilePrefix",("IPEX_SCOTIA_CHQI"));
+     }
+     
+     
+     //INT.135 Filename Prefix
+     else if(value.startsWith("GWED_") && (!value.contains("VOID.txt")))
+     {
+    message.setProperty("FilePrefix",("GWED_POSPAY"));
+     }
+     
+     
+     //INT.135 VOID_Filename Prefix
+     else if(value.startsWith("GWED_") && (value.contains("VOID.txt")))
+     {
+    message.setProperty("FilePrefix",("GWED_VOID"));
+     }
+     
+     
+     //INT.134 VOID_Filename Prefix
+       else if(value.contains("VOID.txt") && (value.startsWith("IPEX_SCOTIA_CHQI")))
+     {
+    message.setProperty("FilePrefix",("IPEX_SCOTIA_CHQI_VOID"));
+     }
+     
+     
+     //Wrong Filename
+     else 
+     {
+          message.setProperty("FilePrefix",("WrongFile"));
+     }
+     
+ 
+    return message;
+}

@@ -1,0 +1,77 @@
+import com.sap.gateway.ip.core.customdev.util.Message;
+import java.util.HashMap;
+import groovy.xml.*;
+import java.util.*;
+import java.lang.*;
+import java.text.SimpleDateFormat;
+import com.sap.it.api.ITApiFactory;
+import com.sap.it.api.mapping.ValueMappingApi;
+
+def Message processData(Message message) {
+    
+    def body = message.getBody(String.class)
+    def rootNode = new XmlSlurper().parseText(body)
+    
+    def properties = message.getProperties();
+    def header = message.getHeaders();
+
+    // def Sender_Qualifier = properties.get("Sender_Qualifier").trim();
+    // def Sender_ID = properties.get("Sender_ID").trim();
+    
+    def Sender_Qualifier = header.get("EDI_Sender_ID_Qualifier").trim();
+    def Sender_ID = header.get("SAP_EDI_Sender_ID").trim();
+    def valueMapApi = ITApiFactory.getApi(ValueMappingApi.class, null);
+    def value = valueMapApi.getMappedValue('B2B_Sender_Agency', 'B2B_Sender_Id', Sender_Qualifier +"|"+ Sender_ID , 'B2B_Receiver_Agency', 'B2B_Receiver_Id');    
+   
+    if (value == null) {
+       throw new NullPointerException("No Value Mapping Artifact's created/deployed or No matching values found for the values in value mapping: " + Sender_Qualifier +"|"+ Sender_ID)
+    }
+
+    //Properties
+
+    def messageId = properties.get("SAP_MessageProcessingLogID");
+    def TargetEmailID = properties.get("TargetEmailId");
+    def date = new Date()
+    def sdf = new SimpleDateFormat("E MM/dd/yyyy hh:mm:ss a")
+    def formattedDate = sdf.format(date)
+
+    
+
+// Initialize an empty CSV string
+
+def csv = new StringBuilder()
+csv.append("***** ERREUR EDI DETECTÉE *****\n")
+csv.append("Date/heure.......................:" + formattedDate )
+//csv.append("\r")
+csv.append("\t\n" + "Message ID.......................:" +  messageId  + "\n")
+csv.append("Source System....................:"+ value )
+csv.append( "\t\n" + "Target System....................:" + TargetEmailID +"\n")
+csv.append("EDI Message ID...................:EDI864\n")
+csv.append("-------------------------------------------------------------------------------------------------------\n\n\n\n")
+
+
+rootNode.'**'.each { node ->
+
+    if (node.name() == 'S_BMG') {
+        def trail = node.Trail.text()
+        def d353 = node.D_353.text()
+        def d352 = node.D_352.text()
+        csv += "${trail}\t${d353}\t${d352}\n"
+    }
+if (node.name() == 'S_MIT') {
+        def trail = node.Trail.text()
+        def d127 = node.D_127.text()
+
+        csv += "${trail}\t${d127}\n"
+    }
+    if (node.name() == 'S_MSG') {
+        def trail = node.Trail.text()
+        def d933 = node.D_933.text()
+        csv += "${trail}\t${d933}\n"
+    }
+}
+    message.setBody(csv.toString())
+
+    return message
+} 
+

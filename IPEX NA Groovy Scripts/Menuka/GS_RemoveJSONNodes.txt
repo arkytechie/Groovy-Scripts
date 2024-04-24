@@ -1,0 +1,19 @@
+import com.sap.gateway.ip.core.customdev.util.Message;
+import java.util.HashMap;
+import groovy.json.JsonSlurper;
+import groovy.json.JsonOutput;
+
+def Message processData(Message message) {
+    // Parse the input payload to a JSON object
+    def jsonSlurper = new JsonSlurper();
+    def body = message.getBody(java.lang.String) as String;
+    def json = jsonSlurper.parseText(body);
+    
+    // Navigate to the nested Message1 object and extract its contents
+    def messageContent = json.Messages.Message1;
+    
+    // Set the transformed message content as the new message body
+    message.setBody(JsonOutput.toJson(messageContent));
+    
+    return message;
+}

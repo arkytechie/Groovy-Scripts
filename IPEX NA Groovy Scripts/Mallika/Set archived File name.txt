@@ -1,0 +1,28 @@
+import com.sap.gateway.ip.core.customdev.util.Message;
+
+import groovy.xml.*;
+
+import groovy.json.*;
+
+import java.util.HashMap;
+
+def Message processData(Message message) {
+    
+def property = message.getProperties();
+def file_name =  property.get("file_name");
+if (file_name.endsWith(".txt"))
+{
+def a = file_name.take(file_name.lastIndexOf('.')) 
+def ArchivedFileName = a + "_A.txt";
+message.setProperty("ArchivedFileName",ArchivedFileName);
+}
+else if (file_name.endsWith(".xml"))
+{
+   def a = file_name.take(file_name.lastIndexOf('.')) 
+   def ArchivedFileName = a + "_A.xml";
+message.setProperty("ArchivedFileName",ArchivedFileName);
+}
+
+return message; 
+    
+}

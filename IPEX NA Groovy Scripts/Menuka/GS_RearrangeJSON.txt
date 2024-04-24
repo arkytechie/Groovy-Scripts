@@ -1,0 +1,48 @@
+import com.sap.gateway.ip.core.customdev.util.Message
+import groovy.json.JsonOutput
+import groovy.json.JsonSlurper
+ 
+def Message processData(Message message) {
+ 
+    def jsonPayload = message.getBody(java.lang.String) as String
+    def jsonSlurper = new JsonSlurper()
+    def jsonDataObject = jsonSlurper.parseText(jsonPayload)
+ 
+    // Define the desired order of keys
+    def desiredOrder = [
+        "interfaceID",
+        "fromWhse",
+        "toWhse",
+        "deliveryDate",
+        "shipDate",
+        "documentDate",
+        "shipVia",
+        "freightTerms",
+        "freightAmount",
+        "fromCurrency",
+        "fromExchangeRate",
+        "toCurrency",
+        "toExchangeRate",
+        "billOfLading",
+        "fromCompany",
+        "toCompany",
+        "deliveryDocument",
+        "stockTransferOrder",
+        "items"
+    ]
+ 
+    // Create a new map to hold the rearranged JSON with values
+    def rearrangedJson = [:]
+ 
+    // Iterate over the desired order and copy corresponding values from the parsed JSON
+    desiredOrder.each { key ->
+        rearrangedJson[key] = jsonDataObject.containsKey(key) ? jsonDataObject[key] : null
+    }
+ 
+    // Convert rearranged JSON back to a JSON string
+    def rearrangedJsonString = JsonOutput.toJson(rearrangedJson)
+ 
+    // Set the rearranged JSON string as the message body
+    message.setBody(rearrangedJsonString)
+    return message
+}

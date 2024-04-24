@@ -1,0 +1,32 @@
+import com.sap.gateway.ip.core.customdev.util.Message;
+import java.util.HashMap;
+import com.sap.it.api.ITApiFactory;
+import com.sap.it.api.mapping.ValueMappingApi;
+
+def Message processData(Message message) {
+    //Body
+    def body = message.getBody(java.lang.String);
+    def headers = message.getHeaders();
+    def  key = headers.get("mailBox")
+    def service = ITApiFactory.getApi(ValueMappingApi.class, null);
+    def keyValue
+    if( service != null){
+        
+        keyValue = service.getMappedValue("MS GRAPH", "MS Graph Mailbox", key, "S4HANA", "S4HANA Mailbox");
+       
+    }
+   if(keyValue == null || keyValue.equals(""))
+   {
+       throw new Exception("details not found in value mapping ");
+      // message.setProperty("Directory","")
+   }
+   else
+   {
+       
+         message.setProperty("ToAddress",keyValue);
+   }
+
+  
+    return message;
+
+}

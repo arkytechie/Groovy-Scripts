@@ -1,0 +1,34 @@
+import com.sap.gateway.ip.core.customdev.util.Message;
+import java.util.HashMap;
+import groovy.xml.*;
+
+def Message processData(Message message) {
+    def map = message.getProperties();
+    def body = message.getBody(java.lang.String) as String;
+    def messageLog = messageLogFactory.getMessageLog(message);
+    def xml = new XmlParser().parseText(body);
+     removeChildNodes(xml, 'RawMatInfo_S4toPIMSet', 'RmCode')
+  def modifiedXml = XmlUtil.serialize(xml)
+
+    // Remove the XML declaration
+    modifiedXml = modifiedXml.replaceFirst('<\\?xml .*?\\?>', '')
+
+    // Set the modified XML as the message body
+    message.setBody(modifiedXml)
+    
+   // message.setProperty(body,"payload");
+
+    return message
+}
+
+def removeChildNodes(node, parentNodeName, fieldName) {
+    if (node.name().toString() == parentNodeName) {
+        node.children().removeAll { childNode ->
+            childNode."$fieldName".text().trim().isEmpty()
+        }
+    } else {
+        node.children().each { child ->
+            removeChildNodes(child, parentNodeName, fieldName)
+        }
+    }
+}

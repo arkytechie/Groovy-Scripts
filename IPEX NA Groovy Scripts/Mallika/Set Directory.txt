@@ -1,0 +1,32 @@
+import com.sap.gateway.ip.core.customdev.util.Message;
+import java.util.HashMap;
+//import groovy.xml.*;
+import com.sap.it.api.ITApiFactory;
+import com.sap.it.api.mapping.ValueMappingApi;
+
+def Message processData(Message message) {
+    //Body
+     def body = message.getBody(java.lang.String);
+   
+    def properties = message.getProperties();
+    def  transactionTypeGroup = properties.get("TransactionTypeGroup");
+    def incomingPaymentFileType = properties.get("incomingPaymentFileType");
+    def key = incomingPaymentFileType+"|"+transactionTypeGroup;
+      // def value=message.getProperty("TransactionTypeGroup");
+       def service = ITApiFactory.getApi(ValueMappingApi.class, null);
+    def keyValue
+   // def tokenValues = [];
+    if( service != null){
+        
+        keyValue = service.getMappedValue("S4HANA", "SlugDetail", key, "Trax", "directory");
+    }
+     if(keyValue == null || keyValue.equals(""))
+   {
+       throw new Exception("directory not found in Value Mapping for corresponding TransactionTypeGroup")
+   }
+   else
+   {
+        message.setProperty("directory",keyValue);
+   }
+    return message;
+}

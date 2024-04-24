@@ -1,0 +1,46 @@
+import com.sap.gateway.ip.core.customdev.util.Message;
+import java.util.HashMap;
+import groovy.json.JsonSlurper;
+    
+    def Message processData(Message message) {
+        
+        try{
+            def body = message.getBody(String);
+
+            def batchPartResponse = new XmlSlurper().parseText(body);
+            //println batchPartResponse;
+
+            def errorBody = batchPartResponse.batchChangeSetResponse.batchChangeSetPartResponse.body.text();
+            
+            //println errorBody;
+            if(errorBody != null && errorBody != ''){
+                def jsonError = new JsonSlurper().parseText(errorBody);
+                
+                //println jsonError;
+                def itemText = jsonError.error.message.value;
+                message.setProperty('errorBody' , itemText);
+               def matcher = (itemText =~ /\d+/)
+    def item = matcher.find() ? matcher.group() : null
+                message.setProperty('deliveryDocumentItem' , item)
+                println item;
+
+                // get items from incomingPayload
+                def incomingPayload = message.getProperty('incomingPayload');
+                //println incomingPayload.class;
+                def root = new JsonSlurper().parseText(incomingPayload);
+                root.items.any{ it->
+                    if(it.deliveryDocumentItem == item){
+                        message.setProperty('productCode', it.productCode);
+                        message.setProperty('deliveryQty', it.deliveryQty);
+                        message.setProperty('unitOfMeasure', it.unitOfMeasure);
+                    }
+                }
+            }
+        }
+        catch(Exception ex){
+            throw new Exception('Some error while generating email body');
+        }
+        
+        return message;
+        }
+    

@@ -1,0 +1,28 @@
+import com.sap.gateway.ip.core.customdev.util.Message;
+import java.util.HashMap;
+
+def Message addCustomMPL_ALXS_Entity(Message message) {
+    
+	def messageLog = messageLogFactory.getMessageLog(message);
+	if(messageLog != null){
+		def entity = message.getProperties().get("ALXS_Entity");		
+		if(entity!=null)
+			messageLog.addCustomHeaderProperty("ALXS_Entity", entity);		
+	}
+	return message;
+}
+
+def Message addEscalationReason(Message message) {
+
+    def messageLog = messageLogFactory.getMessageLog(message);
+    if(messageLog != null){
+        
+        def escalationReason = message.getProperties().get("EscalationReason");
+        if(escalationReason!=null){
+            /*Custom header for escalation reasons*/
+            messageLog.addCustomHeaderProperty("EscalationReason", escalationReason);
+        }
+    }
+    
+    return message;
+}

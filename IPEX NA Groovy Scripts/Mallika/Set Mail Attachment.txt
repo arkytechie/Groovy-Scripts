@@ -1,0 +1,29 @@
+
+import com.sap.gateway.ip.core.customdev.util.Message
+import groovy.json.JsonSlurper
+import org.apache.camel.impl.DefaultAttachment
+import javax.mail.util.ByteArrayDataSource
+import java.util.Base64
+import java.io.ByteArrayInputStream
+
+def Message processData(Message message) {
+    def body = message.getBody(java.lang.String)
+    def jsonParser = new JsonSlurper()
+    def json = jsonParser.parseText(body)
+    
+    def attachments = json.value
+
+    for (attachment in attachments) {
+        def fileName = attachment.name
+        def contentType = attachment.contentType
+        def encodedPayload = attachment.contentBytes
+
+
+        def decodedPayload = new ByteArrayDataSource(new ByteArrayInputStream(Base64.getDecoder().decode(encodedPayload)), contentType)
+        def addAttachment = new DefaultAttachment(decodedPayload)
+
+        message.addAttachmentObject(fileName, addAttachment)
+    }
+
+    return message
+}

@@ -1,0 +1,49 @@
+{
+    "interfaceID": "INT141",
+    "company": "01",
+    "warehouse": "058",
+    "billToCustomer": "41*8101006",
+    "shipToCustomer": "41*8101006",
+    "rmaContact": "BETZ POOLS LIMITED",
+    "rmaContactEmail": "saravanan.sivarajan@ipexna.com",
+    "rmaContactPhone": "519-686-7340",
+    "orderEntryDate": "04182024",
+    "orderEntryTime": "195521",
+    "returnDate": "04182024",
+    "transactionCurrency": "CAD",
+    "currencyExchangeRate": "1.00000",
+    "freightTerms": "PP",
+    "sapRMANumber": "60001235",
+    "deliveryDocument": "84000691",
+    "customerUOMType": "I",
+    "shipVia": "",
+    "items": [
+        {
+            "productCode": "132012",
+            "returnQuantity": "10.000",
+            "unitOfMeasure": "MR",
+            "domesticCost": "15437.520",
+            "currencyCost": "15437.520",
+            "itemUOMType": "",
+            "deliveryDocumentItem": "000010"
+        },
+        {
+            "productCode": "277007",
+            "returnQuantity": "20.000",
+            "unitOfMeasure": "EA",
+            "domesticCost": "12.503",
+            "currencyCost": "12.503",
+            "itemUOMType": "M",
+            "deliveryDocumentItem": "000020"
+        },
+        {
+            "productCode": "287017",
+            "returnQuantity": "30.000",
+            "unitOfMeasure": "KG",
+            "domesticCost": "12.546",
+            "currencyCost": "12.546",
+            "itemUOMType": "M",
+            "deliveryDocumentItem": "000030"
+        }
+    ]
+}

@@ -1,0 +1,31 @@
+import com.sap.gateway.ip.core.customdev.util.Message
+import groovy.json.JsonSlurper
+
+def Message processData(Message message) {
+    // Get the input payload from the message
+    def payload = message.getBody(java.lang.String) as String
+
+    // Remove backslashes from the input payload
+    def cleanedPayload = payload.replaceAll('\\\\"', /"/)
+
+    // Parse the cleaned payload as JSON
+    def jsonSlurper = new JsonSlurper()
+    def json = jsonSlurper.parseText(cleanedPayload)
+
+    // Extract the value of below fields
+    def iffStockTransferOrderValue = json.iffStockTransferOrder
+    def errorStatus = json.status
+    def errorMessage = json.messages
+    def sapStockTransferOrderValue = json.sapStockTransferOrder
+
+    // Set the value of below fields to a message property
+    message.setProperty("iffStockTransferOrderValue", iffStockTransferOrderValue)
+    message.setProperty("errorStatus", errorStatus)
+    message.setProperty("errorMessage", errorMessage)
+    message.setProperty("sapStockTransferOrderValue", sapStockTransferOrderValue)
+
+    // Set the cleaned payload back to the message body
+    message.setBody(cleanedPayload)
+
+    return message
+}
